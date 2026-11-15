@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lange Leitung – Gemeinsame freie Zeiten finden</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ical.js/1.5.0/ical.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f1e8; --card:#fffdf8; --ink:#1d1a14; --muted:#857c6b; --faint:#a89f8d;
+    --line:#e8e0cf; --line-soft:#efe9db;
+    --accent:#2e5742; --accent-ink:#22402f; --accent-soft:#e7eee6; --accent-line:#cfdccd;
+    --gold:#b08d3e;
+    --green-chip:#edf5ec; --green-chip-line:#cde0cb; --green-chip-ink:#2c5e3f;
+    --red:#a84632;
+    --radius:20px;
+    --shadow:0 1px 2px rgba(60,50,30,.05),0 10px 30px rgba(60,50,30,.07);
+    --shadow-lift:0 2px 4px rgba(60,50,30,.06),0 16px 40px rgba(60,50,30,.10);
+    --serif:"Fraunces",Georgia,"Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:var(--sans);background:
+      radial-gradient(1200px 500px at 50% -150px, #fbf8f0 0%, var(--bg) 60%);
+    color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:44px 22px 90px}
+
+  /* ---------- header ---------- */
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:34px}
+  .brand{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mode{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted);
+    background:var(--card);border:1px solid var(--line);border-radius:999px;padding:7px 14px}
+  .mode .dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  .mode.live{color:var(--accent-ink);border-color:var(--accent-line);background:var(--accent-soft)}
+  .mode.live .dot{background:var(--accent);box-shadow:0 0 0 0 rgba(46,87,66,.4);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(46,87,66,.35)}70%{box-shadow:0 0 0 7px rgba(46,87,66,0)}100%{box-shadow:0 0 0 0 rgba(46,87,66,0)}}
+
+  .hero{text-align:center;margin-bottom:46px;animation:rise .6s ease both}
+  .greet{font-size:14px;color:var(--gold);font-weight:600;letter-spacing:.04em;margin-bottom:10px}
+  h1.group{font-family:var(--serif);font-weight:500;font-size:clamp(34px,6vw,54px);line-height:1.08;
+    letter-spacing:-.015em;margin:0 0 14px;font-variation-settings:"opsz" 110}
+  .edit-name{border:none;background:none;cursor:pointer;color:var(--faint);font-size:16px;vertical-align:middle;
+    margin-left:6px;padding:4px;border-radius:8px}
+  .edit-name:hover{color:var(--ink);background:var(--line-soft)}
+  .name-input{font-family:var(--serif);font-size:clamp(30px,5vw,44px);text-align:center;border:none;
+    border-bottom:2px solid var(--accent);background:none;outline:none;color:var(--ink);max-width:90%;padding:2px 8px}
+  .hero p.sub{margin:0;color:var(--muted);font-size:16px}
+  .avatars{display:flex;justify-content:center;margin-top:22px}
+  .avatars .av{margin:0 -5px;transition:transform .2s}
+  .avatars .av:hover{transform:translateY(-4px)}
+  .av{width:42px;height:42px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:700;font-size:16px;border:2.5px solid var(--card);box-shadow:0 2px 6px rgba(60,50,30,.15);
+    font-family:var(--serif)}
+
+  /* ---------- cards ---------- */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:26px 26px 24px;margin-top:22px;box-shadow:var(--shadow);animation:rise .55s ease both}
+  .card:nth-of-type(2){animation-delay:.05s}.card:nth-of-type(3){animation-delay:.1s}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .step{display:flex;align-items:baseline;gap:12px;margin-bottom:18px}
+  .step .no{font-family:var(--serif);font-size:22px;color:var(--gold);font-style:italic}
+  .step h2{font-size:17px;margin:0;font-weight:650;letter-spacing:-.01em}
+  .step .opt{font-size:12px;color:var(--faint);font-weight:500;margin-left:auto}
+
+  label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.06em}
+  input[type=text],input[type=url],input[type=date],input[type=time],input[type=number]{
+    width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:12px;font-size:15px;
+    font-family:var(--sans);color:var(--ink);background:#fff;outline:none;transition:border .15s,box-shadow .15s}
+  input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(46,87,66,.12)}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:130px}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:12px;
+    padding:12px 20px;font-size:14.5px;font-weight:600;font-family:var(--sans);cursor:pointer;
+    transition:transform .1s,filter .15s,box-shadow .15s}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--ink);color:#fdfbf5}
+  .btn-primary:hover{filter:brightness(1.25)}
+  .btn-accent{background:var(--accent);color:#fff}
+  .btn-accent:hover{filter:brightness(1.1)}
+  .btn-ghost{background:var(--line-soft);color:var(--ink)}
+  .btn-ghost:hover{background:var(--line)}
+  .btn-sm{padding:8px 13px;font-size:13px;border-radius:10px}
+  .btn-xs{padding:5px 10px;font-size:12px;border-radius:8px}
+  .btn-cta{width:100%;padding:17px;font-size:16.5px;border-radius:14px;margin-top:26px;
+    box-shadow:var(--shadow);letter-spacing:.01em}
+  .btn-cta:hover{box-shadow:var(--shadow-lift)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  .addrow{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  .addrow>div.grow{flex:1;min-width:170px}
+  .chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;color:var(--muted);
+    cursor:pointer;margin-top:12px}
+  .chk input{width:16px;height:16px;accent-color:var(--accent)}
+  details.alt{margin-top:14px;font-size:13.5px;color:var(--muted)}
+  details.alt summary{cursor:pointer;font-weight:600;color:var(--muted)}
+  details.alt summary:hover{color:var(--ink)}
+  .hint{background:var(--line-soft);border-radius:12px;padding:12px 15px;font-size:13px;color:var(--muted);margin-top:14px;line-height:1.6}
+
+  /* ---------- members ---------- */
+  .members{list-style:none;padding:0;margin:0}
+  .member{display:flex;align-items:center;gap:14px;padding:13px 4px;border-bottom:1px solid var(--line-soft)}
+  .member:last-child{border-bottom:none}
+  .m-meta{flex:1;min-width:0}
+  .m-name{font-weight:650;font-size:15px}
+  .m-sub{font-size:12.5px;color:var(--faint)}
+  .badge{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:999px;
+    padding:3px 8px;vertical-align:1px;margin-left:7px}
+  .badge.me{background:var(--accent-soft);color:var(--accent-ink)}
+  .badge.local{background:#f3ead6;color:#8a6d2f}
+  .m-actions{display:flex;gap:6px;align-items:center}
+  .x{border:none;background:none;color:var(--faint);cursor:pointer;font-size:19px;line-height:1;padding:6px;border-radius:8px}
+  .x:hover{color:var(--red);background:#f8ece8}
+  .x.confirm{color:#fff;background:var(--red);font-size:12px;font-weight:700;padding:6px 10px}
+  .empty-members{color:var(--faint);font-size:14px;padding:16px 4px;font-style:italic}
+
+  /* ---------- weekdays & required ---------- */
+  .pills{display:flex;gap:7px;flex-wrap:wrap}
+  .pills label{display:flex;align-items:center;gap:6px;font-weight:550;font-size:13.5px;margin:0;
+    padding:8px 13px;border:1px solid var(--line);border-radius:999px;cursor:pointer;color:var(--muted);
+    text-transform:none;letter-spacing:0;background:#fff;transition:all .15s}
+  .pills input{accent-color:var(--accent);width:14px;height:14px}
+  .pills label:has(input:checked){background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-ink)}
+  .sect{margin-top:18px}
+
+  /* ---------- results ---------- */
+  .results{margin-top:8px}
+  .top-pick{background:linear-gradient(135deg,#27493a,#1d3a2c);color:#f2efe6;border-radius:var(--radius);
+    padding:28px;margin-top:26px;box-shadow:var(--shadow-lift);animation:rise .5s ease both}
+  .top-pick .tag{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#c9b97f;font-weight:700;margin-bottom:10px}
+  .top-pick .when{font-family:var(--serif);font-size:clamp(24px,4.5vw,34px);font-weight:500;line-height:1.2}
+  .top-pick .dur{color:#aec5b3;font-size:15px;margin-top:6px}
+  .top-pick .btn{background:rgba(255,255,255,.14);color:#fff;margin-top:16px;backdrop-filter:blur(4px)}
+  .top-pick .btn:hover{background:rgba(255,255,255,.22)}
+  .sumline{display:flex;align-items:baseline;gap:10px;margin:26px 2px 2px}
+  .sumline .big{font-family:var(--serif);font-size:30px;color:var(--accent-ink)}
+  .sumline span{color:var(--muted);font-size:14px}
+  .day{background:var(--card);border:1px solid var(--line);border-radius:16px;margin-top:12px;overflow:hidden;
+    box-shadow:var(--shadow)}
+  .day-head{padding:12px 18px;font-weight:650;font-size:14.5px;display:flex;justify-content:space-between;
+    align-items:center;border-bottom:1px solid var(--line-soft)}
+  .day-head .cnt{font-size:12px;color:var(--faint);font-weight:500}
+  .slots{padding:14px 18px;display:flex;flex-wrap:wrap;gap:9px}
+  .slot{background:var(--green-chip);color:var(--green-chip-ink);border:1px solid var(--green-chip-line);
+    border-radius:999px;padding:8px 16px;font-size:13.5px;font-weight:650;white-space:nowrap;cursor:pointer;
+    transition:all .15s}
+  .slot:hover{background:#e0efdf;transform:translateY(-1px);box-shadow:0 3px 8px rgba(44,94,63,.15)}
+  .slot .dur{color:#7da389;font-weight:500;margin-left:5px}
+  .empty-res{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);text-align:center;
+    padding:38px 24px;color:var(--muted);font-size:14.5px;margin-top:26px;box-shadow:var(--shadow)}
+  .empty-res .big-emoji{font-size:30px;margin-bottom:8px}
+
+  /* ---------- misc ---------- */
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);
+    color:#fdfbf5;padding:12px 22px;border-radius:999px;font-size:14px;font-weight:550;opacity:0;
+    pointer-events:none;transition:all .3s;box-shadow:var(--shadow-lift);z-index:50;max-width:90vw;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  footer{margin-top:40px;font-size:12.5px;color:var(--faint);text-align:center;line-height:1.7}
+  details.help{margin-top:26px;font-size:13.5px;color:var(--muted);background:var(--card);
+    border:1px solid var(--line);border-radius:var(--radius);padding:18px 22px;box-shadow:var(--shadow)}
+  details.help summary{cursor:pointer;font-weight:650;color:var(--ink);font-size:14.5px}
+  details.help ol{margin:12px 0 4px;padding-left:20px}
+  details.help li{margin-bottom:8px}
+  code{background:var(--line-soft);padding:2px 6px;border-radius:6px;font-size:12px}
+  /* ---------- tour ---------- */
+  .spot{box-shadow:0 0 0 3px var(--accent),var(--shadow-lift);transition:box-shadow .2s}
+  .tour{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:60;
+    width:min(460px,calc(100vw - 28px));background:var(--ink);color:#f4f1e8;border-radius:18px;
+    padding:20px 22px 18px;box-shadow:0 20px 50px rgba(0,0,0,.4);animation:tourRise .4s ease both}
+  @keyframes tourRise{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+  .tour .t-step{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:6px}
+  .tour h3{font-family:var(--serif);font-weight:500;font-size:20px;margin:0 0 8px}
+  .tour p{margin:0;font-size:13.5px;line-height:1.65;color:#cfc9ba}
+  .tour .t-nav{display:flex;align-items:center;gap:8px;margin-top:16px}
+  .tour .dots{display:flex;gap:5px;margin-right:auto}
+  .tour .dots i{width:6px;height:6px;border-radius:50%;background:#55503f}
+  .tour .dots i.on{background:var(--gold)}
+  .tour .btn{padding:9px 15px;font-size:13px}
+  .tour .btn-next{background:var(--card);color:var(--ink)}
+  .tour .btn-back{background:#3a362b;color:#e8e3d4}
+  .tour .btn-skip{background:none;color:#8f886f}
+  /* ---------- guide overlay ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(24,20,12,.45);backdrop-filter:blur(3px);z-index:70;
+    display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .25s ease both}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .sheet{background:var(--card);border-radius:22px;max-width:580px;width:100%;max-height:86vh;overflow-y:auto;
+    padding:26px 26px 22px;box-shadow:0 30px 80px rgba(0,0,0,.35);position:relative;animation:rise .3s ease both}
+  .sheet h3{font-family:var(--serif);font-weight:500;font-size:23px;margin:0 0 4px;padding-right:44px}
+  .sheet .sub2{color:var(--muted);font-size:14px;margin:0 0 16px}
+  .close-x{position:absolute;top:16px;right:16px;border:none;background:var(--line-soft);width:34px;height:34px;
+    border-radius:50%;font-size:16px;cursor:pointer;color:var(--muted)}
+  .close-x:hover{background:var(--line);color:var(--ink)}
+  .seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .seg button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 15px;font-size:13.5px;
+    font-weight:600;cursor:pointer;color:var(--muted);font-family:var(--sans)}
+  .seg button.on{background:var(--ink);color:#fdfbf5;border-color:var(--ink)}
+  .gsteps{list-style:none;margin:0;padding:0}
+  .gsteps li{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line-soft);font-size:14.5px;line-height:1.55}
+  .gsteps li:last-child{border-bottom:none}
+  .gsteps .gn{font-family:var(--serif);font-style:italic;color:var(--gold);font-size:19px;flex:0 0 22px;text-align:center}
+  .gnote{background:var(--accent-soft);border-radius:12px;padding:11px 14px;font-size:13px;color:var(--accent-ink);margin-top:14px;line-height:1.55}
+  .gtag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    background:var(--green-chip);color:var(--green-chip-ink);border-radius:999px;padding:3px 9px}
+  .guide-link{margin-top:14px}
+  /* ---------- responsive fixes ---------- */
+  .tour{max-height:70vh;overflow-y:auto}
+  .tour .t-nav{flex-wrap:wrap}
+  .step{flex-wrap:wrap}
+  @media (max-width:600px){
+    .wrap{padding:26px 14px 70px}
+    .topbar{flex-wrap:wrap;gap:10px}
+    .card{padding:20px 16px 18px}
+    .addrow>div{flex:1 1 100%}
+    .addrow .btn{width:100%}
+    .step .opt{margin-left:0;flex-basis:100%;padding-left:34px}
+    .tour{padding:16px 16px 14px}
+    .tour .btn{padding:8px 11px;font-size:12.5px}
+    .tour h3{font-size:18px}
+    .sheet{padding:20px 16px 16px}
+    .member{flex-wrap:wrap}
+    .m-actions{margin-left:auto}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">Lange Leitung</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn btn-ghost btn-sm" onclick="startTour()">Anleitung</button>
+      <div class="mode" id="modePill"><span class="dot"></span><span id="modeTxt">Nur dieses Gerät</span></div>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="greet" id="greet"></div>
+    <h1 class="group"><span id="groupName">Lange Leitung</span><button class="edit-name" id="renameBtn" title="Namen ändern" onclick="startRename()">✎</button></h1>
+    <p class="sub">Wann können wir alle? Kalender rein, gemeinsame Lücke raus.</p>
+    <div class="avatars" id="avatars"></div>
+  </div>
+
+  <!-- 1 · Kalender hinzufügen -->
+  <div class="card" id="cardAdd">
+    <div class="step"><span class="no">1</span><h2>Kalender dazulegen</h2></div>
+    <div class="addrow">
+      <div class="grow">
+        <label>Name</label>
+        <input type="text" id="personName" placeholder="z. B. Jamie" autocomplete="off">
+      </div>
+      <div>
+        <input type="file" id="fileInput" accept=".ics,text/calendar" multiple style="display:none" onchange="handleFiles()">
+        <button class="btn btn-accent" onclick="pickFiles()">＋ .ics-Dateien wählen</button>
+      </div>
+    </div>
+    <label class="chk"><input type="checkbox" id="incAllDay" checked> Ganztägige Einträge zählen als belegt</label>
+    <div class="guide-link"><button class="btn btn-ghost btn-sm" onclick="openGuide()">Wie komme ich an meine .ics-Datei? →</button></div>
+    <details class="alt">
+      <summary>Oder per Kalender-Link (webcal / ics)</summary>
+      <div class="addrow" style="margin-top:12px">
+        <div class="grow"><input type="url" id="urlInput" placeholder="webcal://… oder https://….ics"></div>
+        <div><button class="btn btn-ghost btn-sm" onclick="handleUrl()">Link laden</button></div>
+      </div>
+      <div class="hint">Links werden vom Browser oft blockiert (Sicherheitsrichtlinie). Wenn es fehlschlägt: .ics-Datei herunterladen und oben hochladen – das klappt immer.</div>
+    </details>
+  </div>
+
+  <!-- 2 · Die Runde -->
+  <div class="card">
+    <div class="step"><span class="no">2</span><h2>Die Runde</h2><span class="opt" id="roundCount"></span></div>
+    <ul class="members" id="memberList"></ul>
+    <div id="demoWrap" style="margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="loadDemo()">Beispieldaten ansehen</button></div>
+    <div id="shareWrap" style="margin-top:16px;display:none">
+      <button class="btn btn-accent btn-sm" onclick="shareRound()">Runde als Link teilen</button>
+      <div style="margin-top:7px;color:var(--faint);font-size:12px;line-height:1.5">Der Link enthält die Belegt-Zeiten der Runde. Wer ihn öffnet, hat alles drin, ergänzt seinen Kalender und teilt den neuen Link weiter.</div>
+    </div>
+  </div>
+
+  <!-- 3 · Zeit -->
+  <div class="card" id="cardTime">
+    <div class="step"><span class="no">3</span><h2>Nur die Zeit zählt</h2><span class="opt">gesucht wird automatisch ab heute</span></div>
+    <div class="row">
+      <div><label>Frühestens</label><input type="time" id="winStart" value="08:00" onchange="saveSettings()"></div>
+      <div><label>Spätestens</label><input type="time" id="winEnd" value="23:00" onchange="saveSettings()"></div>
+      <div><label>Mindestdauer (Min.)</label><input type="number" id="minDur" value="60" min="15" step="15" onchange="saveSettings()"></div>
+    </div>
+    <div class="sect">
+      <label>Wochentage</label>
+      <div class="pills" id="weekdays"></div>
+    </div>
+    <div class="sect" id="reqSect" style="display:none">
+      <label>Wer muss frei sein?</label>
+      <div class="pills" id="reqPills"></div>
+    </div>
+    <details class="alt" style="margin-top:16px">
+      <summary>Zeitraum eingrenzen (optional)</summary>
+      <div class="row" style="margin-top:12px">
+        <div><label>Von</label><input type="date" id="fromDate" onchange="saveSettings()"></div>
+        <div><label>Bis</label><input type="date" id="toDate" onchange="saveSettings()"></div>
+      </div>
+    </details>
+  </div>
+
+  <button class="btn btn-primary btn-cta" id="ctaBtn" onclick="findSlots()">Nächste gemeinsame freie Slots finden</button>
+
+  <div class="results" id="results"></div>
+
+  <div style="text-align:center;margin-top:26px">
+    <button class="btn btn-ghost" onclick="openGuide()">Anleitung: So exportierst du deinen Kalender</button>
+  </div>
+
+  <footer>
+    Termindetails bleiben privat – geteilt werden nur Belegt-Zeiten.<br>
+    „Runde als Link teilen“ schickt den Stand ohne Server von Gerät zu Gerät – jeder ergänzt sich selbst und teilt weiter.
+  </footer>
+</div>
+
+<div class="overlay" id="guide" style="display:none" onclick="if(event.target===this)closeGuide()">
+  <div class="sheet">
+    <button class="close-x" onclick="closeGuide()">✕</button>
+    <h3>So bekommst du deine Kalender-Datei</h3>
+    <p class="sub2">Eine .ics-Datei ist einfach der Export deines Kalenders. Wo liegt deiner?</p>
+    <div class="seg">
+      <button data-k="mac" onclick="setGuideTab('mac')">Mac</button>
+      <button data-k="iphone" onclick="setGuideTab('iphone')">iPhone</button>
+      <button data-k="supershift" onclick="setGuideTab('supershift')">Supershift</button>
+      <button data-k="google" onclick="setGuideTab('google')">Google</button>
+    </div>
+    <div id="guideBody"></div>
+  </div>
+</div>
+
+<div class="tour" id="tour" style="display:none">
+  <div class="t-step" id="tStep"></div>
+  <h3 id="tTitle"></h3>
+  <p id="tBody"></p>
+  <button class="btn btn-next" id="tExtra" style="display:none;margin-top:12px" onclick="openGuide()"></button>
+  <div class="t-nav">
+    <div class="dots" id="tDots"></div>
+    <button class="btn btn-skip" onclick="endTour()">Überspringen</button>
+    <button class="btn btn-back" id="tPrev" onclick="tourPrev()">Zurück</button>
+    <button class="btn btn-next" id="tNext" onclick="tourNext()">Weiter</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= state ================= */
+const COLORS=['#2e5742','#a35632','#44588e','#8a6d3b','#7b4a6b','#3f7d7a','#9d4a4a','#5e6b3f'];
+const DAY=86400000, HORIZON=90;
+let ctx={mode:'local',db:null,user:null,uid:null,isOwner:false,canWrite:false};
+let sharedDocs={};            // uid -> {entries:[...]}
+let localEntries=[];          // entries only in this browser
+let groupName='Lange Leitung';
+let required={};              // entryId -> false if excluded
+let pendingDelete=null;
+
+const $=id=>document.getElementById(id);
+const esc=s=>(s+'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uuid=()=> (crypto.randomUUID ? crypto.randomUUID() : Date.now()+'-'+Math.random().toString(36).slice(2));
+const colorFor=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return COLORS[h%COLORS.length];};
+
+/* ================= init ================= */
+const GREETS={1:'Schönen Montag',2:'Schönen Dienstag',3:'Schönen Mittwoch',4:'Schönen Donnerstag',5:'Schönen Freitag',6:'Schönes Wochenende',0:'Schönen Sonntag'};
+$('greet').textContent=GREETS[new Date().getDay()]+' ✳';
+
+const WD=[['Mo',1],['Di',2],['Mi',3],['Do',4],['Fr',5],['Sa',6],['So',0]];
+WD.forEach(([lbl,val])=>{
+  const l=document.createElement('label');
+  l.innerHTML=`<input type="checkbox" value="${val}" checked onchange="saveSettings()">${lbl}`;
+  $('weekdays').appendChild(l);
+});
+
+loadLocal(); loadFromHash(); applySettings(); renderAll(); connectShared();
+
+function loadLocal(){
+  try{
+    const n=localStorage.getItem('fs2.name'); if(n)$('personName').value=n;
+    const g=localStorage.getItem('fs2.group'); if(g)groupName=g;
+    const le=JSON.parse(localStorage.getItem('fs2.local')||'[]'); if(Array.isArray(le))localEntries=le;
+  }catch(e){}
+}
+function persistLocal(){ try{
+  localStorage.setItem('fs2.local',JSON.stringify(localEntries));
+  localStorage.setItem('fs2.group',groupName);
+}catch(e){} }
+function applySettings(){
+  let s={}; try{s=JSON.parse(localStorage.getItem('fs2.settings')||'{}');}catch(e){}
+  if(s.from)$('fromDate').value=s.from;
+  if(s.to)$('toDate').value=s.to;
+  if(s.ws)$('winStart').value=s.ws; if(s.we)$('winEnd').value=s.we; if(s.md)$('minDur').value=s.md;
+  if(Array.isArray(s.wd))document.querySelectorAll('#weekdays input').forEach(i=>i.checked=s.wd.includes(+i.value));
+}
+function saveSettings(){ try{ localStorage.setItem('fs2.settings',JSON.stringify({
+  from:$('fromDate').value,to:$('toDate').value,ws:$('winStart').value,we:$('winEnd').value,
+  md:$('minDur').value,wd:[...document.querySelectorAll('#weekdays input:checked')].map(i=>+i.value)
+}));}catch(e){} }
+
+/* ================= shared connection ================= */
+async function connectShared(){
+  try{
+    const use=window.claude&&window.claude.use; if(!use)return;
+    const tmo=p=>Promise.race([p,new Promise(r=>setTimeout(()=>r(null),10000))]);
+    const [db,user]=await Promise.all([tmo(use.call(window.claude,'db')),tmo(use.call(window.claude,'user'))]);
+    if(!db||!user)return;
+    let uid=null,isOwner=false;
+    try{uid=await user.id();}catch(e){}
+    try{isOwner=!!(await user.isOwner());}catch(e){}
+    if(!uid)return;
+    ctx={mode:'shared',db,user,uid,isOwner,canWrite:true};
+    setMode(true);
+    // group name
+    try{
+      const m=await db.doc('meta/config').get();
+      const d=unwrapDoc(m); if(d&&d.title){groupName=d.title;}
+    }catch(e){}
+    // live member list
+    try{
+      db.collection('cals').onSnapshot(s=>{ingestSnap(s);},err=>{refreshOnce();});
+    }catch(e){ refreshOnce(); }
+    renderAll();
+  }catch(e){/* stay local */}
+}
+async function refreshOnce(){ try{ const s=await ctx.db.collection('cals').get(); ingestSnap(s);}catch(e){} }
+function unwrapDoc(d){ if(!d)return null; try{return typeof d.data==='function'?d.data():(d.data!==undefined?d.data:d);}catch(e){return null;} }
+function unwrapSnap(s){
+  let docs=[];
+  try{
+    if(!s)return[];
+    if(Array.isArray(s))docs=s;
+    else if(Array.isArray(s.docs))docs=s.docs;
+    else if(typeof s.forEach==='function')s.forEach(d=>docs.push(d));
+  }catch(e){}
+  return docs.map(d=>({id:d.id,data:unwrapDoc(d)})).filter(x=>x.id&&x.data);
+}
+function ingestSnap(s){
+  sharedDocs={};
+  unwrapSnap(s).forEach(({id,data})=>{ if(data&&Array.isArray(data.entries))sharedDocs[id]=data; });
+  renderAll();
+}
+function setMode(live){
+  const p=$('modePill'); p.classList.toggle('live',live);
+  $('modeTxt').textContent=live?'Live geteilt':'Nur dieses Gerät';
+}
+
+/* ================= members ================= */
+function allMembers(){
+  const out=[];
+  Object.entries(sharedDocs).forEach(([ownerUid,doc])=>{
+    doc.entries.forEach(e=>out.push({...e,ownerUid,mine:ownerUid===ctx.uid,local:false}));
+  });
+  localEntries.forEach(e=>out.push({...e,ownerUid:null,mine:true,local:true}));
+  out.sort((a,b)=>(a.updatedAt||0)-(b.updatedAt||0));
+  return out;
+}
+function renderAll(){
+  const ms=allMembers();
+  // avatars
+  $('avatars').innerHTML=ms.map(m=>`<span class="av" style="background:${m.color}" title="${esc(m.name)}">${esc((m.name||'?')[0].toUpperCase())}</span>`).join('');
+  // group name
+  $('groupName').textContent=groupName;
+  $('renameBtn').style.display=(ctx.mode==='local'||ctx.isOwner)?'inline-block':'none';
+  $('roundCount').textContent=ms.length?ms.length+(ms.length===1?' Person':' Personen'):'';
+  // list
+  const list=$('memberList');
+  if(!ms.length){ list.innerHTML='<li class="empty-members">Noch niemand da – leg oben den ersten Kalender dazu.</li>'; }
+  else list.innerHTML=ms.map(m=>{
+    const cals=m.calendars||[], evts=cals.reduce((a,c)=>a+(c.busy?c.busy.length:0),0);
+    const canDel=m.mine||ctx.isOwner;
+    const delBtn=canDel?(pendingDelete===m.id
+      ?`<button class="x confirm" onclick="removeMember('${m.id}')">Wirklich löschen?</button>`
+      :`<button class="x" title="Entfernen" onclick="askDelete('${m.id}')">×</button>`):'';
+    const transfer=(m.local&&!m.demo&&ctx.mode==='shared')?`<button class="btn btn-xs btn-ghost" onclick="transferLocal('${m.id}')">In die Gruppe ↑</button>`:'';
+    return `<li class="member">
+      <span class="av" style="background:${m.color};width:38px;height:38px;font-size:15px">${esc((m.name||'?')[0].toUpperCase())}</span>
+      <div class="m-meta">
+        <div class="m-name">${esc(m.name)}${m.mine&&!m.local?'<span class="badge me">du</span>':''}${m.local&&ctx.mode==='shared'?'<span class="badge local">nur lokal</span>':''}${m.demo?'<span class="badge local">Demo</span>':''}</div>
+        <div class="m-sub">${cals.length} Kalender · ${evts} Belegt-Blöcke · ${relTime(m.updatedAt)}</div>
+      </div>
+      <div class="m-actions">${transfer}${delBtn}</div>
+    </li>`;}).join('');
+  // demo button
+  $('demoWrap').style.display=ms.length?'none':'block';
+  $('shareWrap').style.display=ms.some(m=>!m.demo)?'block':'none';
+  // required pills
+  const rs=$('reqSect');
+  if(ms.length>1){
+    rs.style.display='block';
+    $('reqPills').innerHTML=ms.map(m=>`<label><input type="checkbox" ${required[m.id]===false?'':'checked'} onchange="required['${m.id}']=this.checked">${esc(m.name)}</label>`).join('');
+  } else rs.style.display='none';
+}
+function askDelete(id){ pendingDelete=id; renderAll(); setTimeout(()=>{if(pendingDelete===id){pendingDelete=null;renderAll();}},4000); }
+async function removeMember(id){
+  pendingDelete=null;
+  const li=localEntries.findIndex(e=>e.id===id);
+  if(li>=0){ localEntries.splice(li,1); persistLocal(); renderAll(); return; }
+  for(const [ownerUid,doc] of Object.entries(sharedDocs)){
+    const idx=doc.entries.findIndex(e=>e.id===id);
+    if(idx>=0){
+      const entries=doc.entries.filter(e=>e.id!==id);
+      try{
+        if(entries.length) await ctx.db.doc('cals/'+ownerUid).set({entries,updatedAt:Date.now()});
+        else await ctx.db.doc('cals/'+ownerUid).delete();
+        toast('Entfernt');
+      }catch(e){ toast('Keine Berechtigung zum Löschen'); }
+      return;
+    }
+  }
+  renderAll();
+}
+async function transferLocal(id){
+  const e=localEntries.find(x=>x.id===id); if(!e)return;
+  const ok=await pushEntryShared({...e,demo:undefined});
+  if(ok){ localEntries=localEntries.filter(x=>x.id!==id); persistLocal(); toast('In die Gruppe übertragen ✓'); renderAll(); }
+}
+
+/* ================= adding calendars ================= */
+function pickFiles(){
+  if(!$('personName').value.trim()){ toast('Erst einen Namen eintragen'); $('personName').focus(); return; }
+  $('fileInput').click();
+}
+async function handleFiles(){
+  const files=[...$('fileInput').files]; $('fileInput').value='';
+  if(!files.length)return;
+  const name=$('personName').value.trim()||'Unbenannt';
+  try{localStorage.setItem('fs2.name',name);}catch(e){}
+  const incAD=$('incAllDay').checked;
+  const cals=[];
+  for(const f of files){
+    try{
+      const text=await f.text();
+      cals.push({label:f.name.replace(/\.ics$/i,''),incAllDay:incAD,busy:parseICS(text)});
+    }catch(e){ toast('„'+f.name+'“ konnte nicht gelesen werden'); }
+  }
+  if(!cals.length)return;
+  await addEntry(name,cals);
+}
+async function handleUrl(){
+  let url=$('urlInput').value.trim(); if(!url)return;
+  const name=$('personName').value.trim()||'Unbenannt';
+  if(url.startsWith('webcal://'))url='https://'+url.slice(9);
+  try{
+    const res=await fetch(url); if(!res.ok)throw 0;
+    const text=await res.text();
+    let label='Link'; try{label=new URL(url).hostname;}catch(e){}
+    await addEntry(name,[{label,incAllDay:$('incAllDay').checked,busy:parseICS(text)}]);
+    $('urlInput').value='';
+  }catch(e){ toast('Link blockiert – bitte die .ics-Datei hochladen'); }
+}
+async function addEntry(name,cals){
+  const existing=allMembers().find(m=>m.name.toLowerCase()===name.toLowerCase()&&(m.mine||ctx.mode==='local')&&!m.demo);
+  let entry;
+  if(existing){ entry={...existing,calendars:[...(existing.calendars||[]),...cals],updatedAt:Date.now()};
+    delete entry.ownerUid; delete entry.mine; delete entry.local; }
+  else entry={id:uuid(),name,color:colorFor(name),calendars:cals,updatedAt:Date.now()};
+  if(ctx.mode==='shared'){
+    // remove old version of this entry locally/shared, then push
+    if(existing&&existing.local){ localEntries=localEntries.filter(x=>x.id!==existing.id); persistLocal(); }
+    const ok=await pushEntryShared(entry);
+    if(ok){ toast(cals.length+' Kalender für '+name+' hinzugefügt ✓'); return; }
+    // fall through to local on refusal
+  }
+  localEntries=localEntries.filter(x=>x.id!==entry.id); localEntries.push(entry);
+  persistLocal(); renderAll();
+  toast(cals.length+' Kalender für '+name+' hinzugefügt ✓'+(ctx.mode==='shared'?' (nur lokal)':''));
+}
+async function pushEntryShared(entry){
+  try{
+    const mine=sharedDocs[ctx.uid]||{entries:[]};
+    const entries=mine.entries.filter(e=>e.id!==entry.id&&e.name.toLowerCase()!==entry.name.toLowerCase());
+    entries.push(entry);
+    await ctx.db.doc('cals/'+ctx.uid).set({entries,updatedAt:Date.now()});
+    sharedDocs[ctx.uid]={entries}; renderAll();
+    return true;
+  }catch(e){ toast('Schreiben in die Gruppe nicht möglich – lokal gespeichert'); return false; }
+}
+
+/* ================= ICS parsing (busy blocks only) ================= */
+function parseICS(text){
+  if(typeof ICAL==='undefined')throw new Error('Kalender-Bibliothek nicht geladen');
+  const rs=new Date(Date.now()-DAY), re=new Date(Date.now()+HORIZON*DAY);
+  const jcal=ICAL.parse(text), comp=new ICAL.Component(jcal);
+  const out=[];
+  const push=(s,e,ad)=>{ if(e>rs&&s<re&&e>s) out.push([Math.max(s.getTime(),rs.getTime()),Math.min(e.getTime(),re.getTime()),ad?1:0]); };
+  for(const ve of comp.getAllSubcomponents('vevent')){
+    let ev; try{ev=new ICAL.Event(ve);}catch(e){continue;}
+    if(!ev.startDate)continue;
+    const ad=ev.startDate.isDate;
+    if(ev.isRecurring()){
+      let it; try{it=ev.iterator();}catch(e){continue;}
+      let n,g=0;
+      while((n=it.next())&&g++<1500){
+        if(n.toJSDate()>re)break;
+        let det; try{det=ev.getOccurrenceDetails(n);}catch(e){continue;}
+        push(det.startDate.toJSDate(),det.endDate.toJSDate(),ad);
+      }
+    }else{
+      const s=ev.startDate.toJSDate();
+      const e=ev.endDate?ev.endDate.toJSDate():s;
+      push(s,e,ad);
+    }
+  }
+  // merge per flag to compress
+  const merged=[];
+  for(const flag of [0,1]){
+    const arr=out.filter(x=>x[2]===flag).sort((a,b)=>a[0]-b[0]);
+    for(const b of arr){
+      const last=merged.length&&merged[merged.length-1][2]===flag?merged[merged.length-1]:null;
+      if(last&&b[0]<=last[1])last[1]=Math.max(last[1],b[1]); else merged.push([...b]);
+    }
+  }
+  return merged;
+}
+
+/* ================= rename ================= */
+function startRename(){
+  const h=$('groupName');
+  const inp=document.createElement('input');
+  inp.className='name-input'; inp.value=groupName; inp.maxLength=40;
+  h.replaceWith(inp); inp.focus(); inp.select(); $('renameBtn').style.display='none';
+  const done=async()=>{
+    groupName=inp.value.trim()||'Lange Leitung';
+    const span=document.createElement('span'); span.id='groupName'; span.textContent=groupName;
+    inp.replaceWith(span);
+    persistLocal();
+    if(ctx.mode==='shared'&&ctx.isOwner){ try{await ctx.db.doc('meta/config').set({title:groupName});}catch(e){} }
+    renderAll();
+  };
+  inp.addEventListener('blur',done,{once:true});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();});
+}
+
+/* ================= slot finding ================= */
+function findSlots(){
+  const res=$('results');
+  const ms=allMembers().filter(m=>required[m.id]!==false);
+  if(!ms.length){ res.innerHTML='<div class="empty-res">Noch keine Kalender in der Runde.</div>'; return; }
+  const nowMs=Date.now();
+  let rs=$('fromDate').value?new Date($('fromDate').value+'T00:00:00'):new Date();
+  let re=$('toDate').value?new Date($('toDate').value+'T23:59:59'):new Date(nowMs+56*DAY);
+  if(isNaN(rs.getTime()))rs=new Date();
+  if(isNaN(re.getTime())||re<rs)re=new Date(rs.getTime()+56*DAY);
+  const [wsH,wsM]=$('winStart').value.split(':').map(Number);
+  const [weH,weM]=$('winEnd').value.split(':').map(Number);
+  const minDur=Math.max(5,parseInt($('minDur').value)||60)*60000;
+  const wds=[...document.querySelectorAll('#weekdays input:checked')].map(i=>+i.value);
+
+  const busy=[];
+  ms.forEach(m=>(m.calendars||[]).forEach(c=>(c.busy||[]).forEach(([s,e,ad])=>{
+    if(ad&&c.incAllDay===false)return; busy.push([s,e]);
+  })));
+
+  const days=[]; let best=null;
+  const d=new Date(rs); d.setHours(0,0,0,0);
+  while(d<=re){
+    if(wds.includes(d.getDay())){
+      const ws=new Date(d); ws.setHours(wsH,wsM,0,0);
+      const we=new Date(d); we.setHours(weH,weM,0,0);
+      const winS=Math.max(ws.getTime(),rs.getTime(),nowMs), winE=Math.min(we.getTime(),re.getTime());
+      if(winE>winS){
+        const db2=busy.map(([s,e])=>[Math.max(s,winS),Math.min(e,winE)]).filter(([s,e])=>e>s).sort((a,b)=>a[0]-b[0]);
+        const mg=[]; for(const b of db2){ if(mg.length&&b[0]<=mg[mg.length-1][1])mg[mg.length-1][1]=Math.max(mg[mg.length-1][1],b[1]); else mg.push([...b]); }
+        const free=[]; let cur=winS;
+        for(const [s,e] of mg){ if(s-cur>=minDur)free.push([cur,s]); cur=Math.max(cur,e); }
+        if(winE-cur>=minDur)free.push([cur,winE]);
+        if(free.length){ days.push({date:new Date(d),free});
+          for(const f of free){ if(!best||f[1]-f[0]>best[1]-best[0])best=f; } }
+      }
+    }
+    d.setDate(d.getDate()+1);
+  }
+
+  const total=days.reduce((a,x)=>a+x.free.length,0);
+  if(!total){
+    res.innerHTML=`<div class="empty-res"><div class="big-emoji">🌙</div>Keine gemeinsame Lücke in den nächsten Wochen gefunden.<br><span style="font-size:13px;color:var(--faint)">Zeitfenster erweitern oder Mindestdauer senken.</span></div>`;
+  }else{
+    let html=`<div class="top-pick"><div class="tag">Beste Empfehlung</div>
+      <div class="when">${fmtDay(new Date(best[0]))} · ${fmtT(best[0])}–${fmtT(best[1])} Uhr</div>
+      <div class="dur">${fmtDur(Math.round((best[1]-best[0])/60000))} am Stück – für alle ${ms.length===1?'':ms.length+' '}frei</div>
+      <button class="btn btn-sm" onclick="copySlot(${best[0]},${best[1]})">Slot kopieren</button></div>`;
+    html+=`<div class="sumline"><span class="big">${total}</span><span>gemeinsame Slots · ${ms.length} ${ms.length===1?'Person':'Personen'} · ${days.length} Tage mit Optionen · Klick auf einen Slot kopiert ihn</span></div>`;
+    const block=day=>{
+      let h=`<div class="day"><div class="day-head"><span>${fmtDayLong(day.date)}</span><span class="cnt">${day.free.length} Slot${day.free.length>1?'s':''}</span></div><div class="slots">`;
+      day.free.forEach(([s,e])=>{
+        h+=`<span class="slot" onclick="copySlot(${s},${e})">${fmtT(s)}–${fmtT(e)}<span class="dur">${fmtDur(Math.round((e-s)/60000))}</span></span>`;
+      });
+      return h+'</div></div>';
+    };
+    days.slice(0,8).forEach(d=>html+=block(d));
+    if(days.length>8){
+      html+=`<div id="moreDays" style="display:none">`;
+      days.slice(8).forEach(d=>html+=block(d));
+      html+=`</div><button class="btn btn-ghost btn-sm" style="margin-top:14px;width:100%" onclick="document.getElementById('moreDays').style.display='block';this.remove()">Weitere ${days.length-8} Tage anzeigen</button>`;
+    }
+    res.innerHTML=html;
+  }
+  res.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* ================= helpers ================= */
+function fmtDay(d){return d.toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}
+function fmtDayLong(d){return d.toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'});}
+function fmtT(ms){return new Date(ms).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});}
+function fmtDur(m){if(m<60)return m+' Min';const h=Math.floor(m/60),r=m%60;return r?h+' h '+r+' Min':h+' h';}
+function relTime(ts){ if(!ts)return 'gerade eben';
+  const diff=Date.now()-ts;
+  if(diff<3600000)return 'gerade aktualisiert';
+  if(diff<86400000)return 'heute aktualisiert';
+  if(diff<172800000)return 'gestern aktualisiert';
+  return 'Stand '+new Date(ts).toLocaleDateString('de-DE',{day:'numeric',month:'short'});
+}
+function copySlot(s,e){
+  const txt=`${fmtDayLong(new Date(s))}, ${fmtT(s)}–${fmtT(e)} Uhr`;
+  const done=()=>toast('Kopiert: '+txt);
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(()=>fallbackCopy(txt,done));
+  } else fallbackCopy(txt,done);
+}
+function fallbackCopy(txt,done){
+  try{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+  }catch(e){ toast(txt); }
+}
+let toastTimer=null;
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2600); }
+
+/* ================= tour ================= */
+const TOUR=[
+ {t:'Willkommen',h:'So funktioniert Lange Leitung',p:'Jede Person legt ihren Kalender als .ics-Datei dazu. Die App zeigt, wann alle gleichzeitig frei sind. Termindetails bleiben privat.',el:null},
+ {t:'Schritt 1 von 4',h:'Kalender-Datei holen',p:'Exportiere deinen Kalender als .ics-Datei – am Mac in zwei Klicks, am iPhone über den Teilen-Link. Die Anleitung zeigt es dir Schritt für Schritt.',el:'cardAdd',btn:'Anleitung ansehen'},
+ {t:'Schritt 2 von 4',h:'Name rein, Datei hochladen',p:'Namen eintragen, .ics-Datei auswählen – fertig. Dateien von anderen? Deren Namen eintragen und genauso hochladen.',el:'cardAdd'},
+ {t:'Schritt 3 von 4',h:'Nur die Zeit zählt',p:'Kein Datum nötig – gesucht wird ab heute. Stell nur ein, von wann bis wann ihr könnt und wie lang es mindestens sein soll.',el:'cardTime'},
+ {t:'Schritt 4 von 4',h:'Finden & teilen',p:'Ein Klick – der beste Slot steht oben, Antippen kopiert ihn. Mit „Runde als Link teilen“ schickst du den Stand an alle – jeder ergänzt sich selbst und teilt weiter.',el:'ctaBtn'}
+];
+let tourIdx=0;
+function startTour(){tourIdx=0;showTour();}
+function showTour(){
+  const s=TOUR[tourIdx], t=$('tour'); t.style.display='block';
+  $('tStep').textContent=s.t; $('tTitle').textContent=s.h; $('tBody').textContent=s.p;
+  const ex=$('tExtra');
+  if(s.btn){ex.style.display='inline-flex';ex.textContent=s.btn;}else ex.style.display='none';
+  $('tDots').innerHTML=TOUR.map((_,i)=>`<i class="${i===tourIdx?'on':''}"></i>`).join('');
+  $('tPrev').style.visibility=tourIdx?'visible':'hidden';
+  $('tNext').textContent=tourIdx===TOUR.length-1?'Los geht’s':'Weiter';
+  document.querySelectorAll('.spot').forEach(e=>e.classList.remove('spot'));
+  if(s.el){const el=$(s.el); if(el){el.classList.add('spot');
+    const y=window.scrollY+el.getBoundingClientRect().top-80;
+    window.scrollTo({top:Math.max(0,y),behavior:'smooth'});}}
+  else window.scrollTo({top:0,behavior:'smooth'});
+}
+function tourNext(){ if(tourIdx>=TOUR.length-1){endTour();return;} tourIdx++; showTour(); }
+function tourPrev(){ if(tourIdx>0){tourIdx--;showTour();} }
+function endTour(){ $('tour').style.display='none'; document.querySelectorAll('.spot').forEach(e=>e.classList.remove('spot')); try{localStorage.setItem('fs2.tour','1');}catch(e){} }
+try{ if(!localStorage.getItem('fs2.tour')) setTimeout(startTour,700); }catch(e){}
+
+/* ================= export guide ================= */
+const GUIDES={
+ mac:{tag:'Einfachster Weg · nichts wird öffentlich',steps:[
+  'Kalender-App auf dem Mac öffnen.',
+  'Links in der Seitenleiste deinen Kalender anklicken.',
+  'Oben im Menü: Ablage → Exportieren → Exportieren…',
+  'Die .ics-Datei sichern und hier hochladen. Fertig.']},
+ iphone:{steps:[
+  'Kalender-App öffnen → unten auf „Kalender“ tippen.',
+  'Beim gewünschten Kalender auf das ⓘ tippen.',
+  '„Öffentlicher Kalender“ einschalten → „Link teilen …“ → Link kopieren.',
+  'Link im Browser einfügen und vorne webcal:// durch https:// ersetzen → öffnen.',
+  'Die heruntergeladene .ics-Datei hier hochladen.'],
+  note:'Klappt nur mit iCloud-Kalendern. Ein Kalender „Auf meinem iPhone“ hat keine Teilen-Option – Termine dafür erst in einen iCloud-Kalender legen.'},
+ supershift:{steps:[
+  'In den Supershift-Einstellungen die Kalender-Synchronisation einschalten.',
+  'Deine Schichten erscheinen dann als eigener Kalender in der Kalender-App.',
+  'Diesen Kalender exportieren: am Mac über Ablage → Exportieren, am iPhone über den Teilen-Link (Tab „iPhone“).'],
+  note:'Supershift erzeugt selbst keine .ics-Datei – der Weg führt immer über den Gerätekalender.'},
+ google:{steps:[
+  'Google Kalender am Rechner öffnen → Zahnrad → Einstellungen.',
+  'Links deinen Kalender wählen → „Kalender einbinden“.',
+  '„Geheime Adresse im iCal-Format“ kopieren.',
+  'Im Browser öffnen – die .ics-Datei lädt herunter. Hochladen.'],
+  note:'Die geheime Adresse nicht weitergeben – sie zeigt deinen kompletten Kalender.'}
+};
+let gTab='mac';
+function openGuide(){ $('guide').style.display='flex'; setGuideTab(gTab); }
+function closeGuide(){ $('guide').style.display='none'; }
+function setGuideTab(k){ gTab=k;
+  document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
+  const g=GUIDES[k];
+  $('guideBody').innerHTML=(g.tag?`<div style="margin-bottom:8px"><span class="gtag">${g.tag}</span></div>`:'')
+    +'<ol class="gsteps">'+g.steps.map((s,i)=>`<li><span class="gn">${i+1}</span><span>${s}</span></li>`).join('')+'</ol>'
+    +(g.note?`<div class="gnote">${g.note}</div>`:'');
+}
+
+/* ================= round share link ================= */
+function packRound(){
+  const ms=allMembers().filter(m=>!m.demo);
+  return JSON.stringify({g:groupName,m:ms.map(m=>({n:m.name,c:(m.calendars||[]).map(c=>({
+    l:c.label,a:c.incAllDay?1:0,
+    b:(c.busy||[]).map(([s,e,ad])=>[Math.round(s/60000),Math.round(e/60000),ad?1:0])
+  }))}))});
+}
+function shareRound(){
+  const json=packRound(); let enc,tag;
+  if(typeof LZString!=='undefined'){enc=LZString.compressToEncodedURIComponent(json);tag='d';}
+  else{enc=btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');tag='b';}
+  const url=location.origin+location.pathname+location.search+'#'+tag+'='+enc;
+  if(url.length>30000){toast('Runde zu groß für einen Link – teilt die .ics-Dateien direkt');return;}
+  const done=()=>toast('Link kopiert – ab in den Gruppenchat!');
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done).catch(()=>fallbackCopy(url,done));
+  else fallbackCopy(url,done);
+}
+function loadFromHash(){
+  const h=location.hash.slice(1); if(!h)return;
+  const m=h.match(/^(d|b)=(.+)$/); if(!m)return;
+  let json=null;
+  try{
+    if(m[1]==='d'&&typeof LZString!=='undefined')json=LZString.decompressFromEncodedURIComponent(m[2]);
+    else if(m[1]==='b')json=decodeURIComponent(escape(atob(m[2].replace(/-/g,'+').replace(/_/g,'/'))));
+  }catch(e){}
+  if(!json)return;
+  try{
+    const o=JSON.parse(json);
+    if(o.g)groupName=(o.g+'').slice(0,40);
+    (o.m||[]).forEach(p=>{
+      const name=(p.n||'Unbenannt')+'';
+      const cals=(p.c||[]).map(c=>({label:(c.l||'Kalender')+'',incAllDay:!!c.a,
+        busy:(Array.isArray(c.b)?c.b:[]).map(([s,e,ad])=>[s*60000,e*60000,ad?1:0]).filter(x=>isFinite(x[0])&&isFinite(x[1]))}));
+      localEntries=localEntries.filter(x=>x.name.toLowerCase()!==name.toLowerCase());
+      localEntries.push({id:uuid(),name,color:colorFor(name),calendars:cals,updatedAt:Date.now()});
+    });
+    persistLocal(); renderAll();
+    toast('Runde aus dem Link geladen ✓');
+    history.replaceState(null,'',location.pathname+location.search);
+  }catch(e){}
+}
+
+/* ================= demo ================= */
+function loadDemo(){
+  const base=new Date(); base.setHours(0,0,0,0);
+  const mk=(d,sh,eh)=>{const s=new Date(base.getTime()+d*DAY);s.setHours(sh,0,0,0);const e=new Date(base.getTime()+d*DAY);e.setHours(eh,0,0,0);return [s.getTime(),e.getTime(),0];};
+  const demo=(name,busy)=>({id:uuid(),name,color:colorFor(name),demo:true,updatedAt:Date.now(),
+    calendars:[{label:'Demo',incAllDay:true,busy}]});
+  localEntries.push(
+    demo('Jamie (Demo)',[mk(1,9,17),mk(2,9,17),mk(3,19,22),mk(5,9,17)]),
+    demo('Lena (Demo)',[mk(1,8,14),mk(2,14,22),mk(4,8,16)]),
+    demo('Max (Demo)',[mk(2,18,20),mk(3,9,12),mk(5,14,23)])
+  );
+  persistLocal(); renderAll();
+  toast('Demo geladen – unten auf „Slots finden“ klicken');
+}
+</script>
+</body>
+</html>
