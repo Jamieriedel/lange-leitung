@@ -435,7 +435,15 @@
     <div class="card">
       <div class="step"><span class="no">🗳️</span><h2>Terminvorschlag-Umfrage</h2></div>
       <p class="muted" style="margin:-8px 0 14px">Mehrere Termine vorschlagen, alle stimmen ab – wer kann wann?</p>
-      <button class="btn btn-accent btn-sm" onclick="newPoll()">+ Neue Umfrage</button>
+      <div id="pollForm" style="display:none;background:var(--line-soft);border-radius:12px;padding:14px;margin-bottom:14px">
+        <input type="text" id="pollTitle" placeholder="Titel, z. B. Wann treffen wir uns?" style="margin-bottom:8px">
+        <input type="text" id="pollOpts" placeholder="Optionen mit Komma: Fr 20 Uhr, Sa 18 Uhr, So Brunch">
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-accent btn-sm" onclick="createPoll()">Umfrage starten</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pollForm').style.display='none'">Abbrechen</button>
+        </div>
+      </div>
+      <button class="btn btn-accent btn-sm" id="pollNewBtn" onclick="document.getElementById('pollForm').style.display='block';this.style.display='none'">+ Neue Umfrage</button>
       <div id="pollList" style="margin-top:16px"></div>
     </div>
   </div>
@@ -616,20 +624,15 @@ function applyData(d){
   if(d.meta && d.meta.code!=null && !groupCode) groupCode=d.meta.code;
   lastUpdated=d._updated||0;
 }
+function codeHeaders(extra){ return Object.assign({'X-Group-Code':groupCode||''}, extra||{}); }
 async function loadGroup(isNew){
   if(!groupId)return false;
   try{
-    const res=await fetch(API+'/group/'+groupId); if(!res.ok)return false;
+    const res=await fetch(API+'/group/'+groupId,{headers:codeHeaders()});
+    if(res.status===403) return 'locked';
+    if(!res.ok)return false;
     const d=await res.json();
-    if(d && typeof d==='object'){
-      // Code-Schutz: existiert eine Gruppe mit Code und unserer stimmt nicht?
-      const savedCode=d.meta&&d.meta.code;
-      const groupExists=!!(d.meta||d.members);
-      if(savedCode && groupExists && !isNew && savedCode!==groupCode) return 'locked';
-      applyData(d);
-      persistLocal(); renderAll();
-      return true;
-    }
+    if(d && typeof d==='object'){ applyData(d); persistLocal(); renderAll(); return true; }
   }catch(e){/* offline: Cache bleibt */ return true; }
   return true;
 }
@@ -638,7 +641,7 @@ async function saveKey(key,value){
   if(!groupId)return false;
   try{
     saving=true;
-    const res=await fetch(API+'/group/'+groupId+'/'+key,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});
+    const res=await fetch(API+'/group/'+groupId+'/'+key,{method:'PUT',headers:codeHeaders({'Content-Type':'application/json'}),body:JSON.stringify(value)});
     saving=false; lastUpdated=Date.now();
     return res.ok;
   }catch(e){ saving=false; return false; }
@@ -647,9 +650,9 @@ async function saveMembers(){ return saveKey('members',members); }
 async function saveWannados(){ return saveKey('wannados',wannados); }
 async function savePolls(){ return saveKey('polls',polls); }
 async function saveExpenses(){ return saveKey('expenses',expenses); }
-async function saveMeta(){ if(!groupId)return; try{ await fetch(API+'/group/'+groupId+'/meta',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:groupName,code:groupCode})}); }catch(e){} }
+async function saveMeta(){ if(!groupId)return; try{ await fetch(API+'/group/'+groupId+'/meta',{method:'PUT',headers:codeHeaders({'Content-Type':'application/json'}),body:JSON.stringify({name:groupName,code:groupCode})}); }catch(e){} }
 function startSync(){ stopSync(); syncTimer=setInterval(async()=>{ if(saving)return;
-  try{ const res=await fetch(API+'/group/'+groupId); if(!res.ok)return; const d=await res.json();
+  try{ const res=await fetch(API+'/group/'+groupId,{headers:codeHeaders()}); if(!res.ok)return; const d=await res.json();
     if(d && (d._updated||0)>lastUpdated){ applyData(d); persistLocal(); renderAll(); }
   }catch(e){}
 },5000); }
@@ -1071,13 +1074,16 @@ function renderWanna(){
 }
 
 /* ================= Umfragen ================= */
-async function newPoll(){
-  const title=prompt('Worum geht die Umfrage? (z. B. „Wann treffen wir uns?")'); if(!title)return;
-  const optsRaw=prompt('Optionen, mit Komma getrennt (z. B. Fr 20 Uhr, Sa 18 Uhr, So Brunch):'); if(!optsRaw)return;
+async function createPoll(){
+  const title=$('pollTitle').value.trim();
+  const optsRaw=$('pollOpts').value.trim();
+  if(!title||!optsRaw){ toast('Titel und Optionen eintragen'); return; }
   const options=optsRaw.split(',').map(s=>s.trim()).filter(Boolean).map(t=>({id:uuid(),text:t,votes:[]}));
-  if(!options.length)return;
+  if(options.length<2){ toast('Mindestens zwei Optionen, mit Komma getrennt'); return; }
   await loadGroup(false);
-  polls.unshift({id:uuid(),title:title.trim(),options,at:Date.now()});
+  polls.unshift({id:uuid(),title,options,at:Date.now()});
+  $('pollTitle').value='';$('pollOpts').value='';
+  $('pollForm').style.display='none'; $('pollNewBtn').style.display='inline-flex';
   renderPolls(); await savePolls();
 }
 async function votePoll(pollId,optId){
@@ -1089,8 +1095,10 @@ async function votePoll(pollId,optId){
   if(i>=0)o.votes.splice(i,1); else o.votes.push(myId);
   renderPolls(); await savePolls();
 }
+let pendingPoll=null;
 async function removePoll(id){
-  if(!confirm('Umfrage löschen?'))return;
+  if(pendingPoll!==id){ pendingPoll=id; renderPolls(); setTimeout(()=>{if(pendingPoll===id){pendingPoll=null;renderPolls();}},4000); return; }
+  pendingPoll=null;
   await loadGroup(false);
   polls=polls.filter(x=>x.id!==id); renderPolls(); await savePolls();
 }
@@ -1101,7 +1109,7 @@ function renderPolls(){
     const max=Math.max(0,...p.options.map(o=>(o.votes||[]).length));
     const best=p.options.filter(o=>(o.votes||[]).length===max && max>0);
     return `<div class="poll">
-      <div style="display:flex;align-items:start;gap:8px"><h4 style="flex:1">${esc(p.title)}</h4><button class="x" onclick="removePoll('${p.id}')">×</button></div>
+      <div style="display:flex;align-items:start;gap:8px"><h4 style="flex:1">${esc(p.title)}</h4>${pendingPoll===p.id?`<button class="x confirm" onclick="removePoll('${p.id}')">Löschen?</button>`:`<button class="x" onclick="removePoll('${p.id}')">×</button>`}</div>
       ${p.options.map(o=>{const v=o.votes||[];const mine=v.indexOf(myId)>=0;
         return `<div class="poll-opt">
           <button class="vote ${mine?'on':''}" onclick="votePoll('${p.id}','${o.id}')">${mine?'✓':'○'}</button>

@@ -63,19 +63,28 @@ export default {
       if (!env.DATA) return json({ error: 'KV not configured' }, 500);
       const id = gm[1], key = gm[2];
       const storeKey = 'g:' + id;
+      const raw = await env.DATA.get(storeKey);
+      const data = raw ? JSON.parse(raw) : {};
+
+      // Zugangscode serverseitig prüfen: hat die Gruppe einen Code, muss er passen.
+      const savedCode = data.meta && data.meta.code;
+      const givenCode = request.headers.get('X-Group-Code') || '';
+      if (savedCode && savedCode !== givenCode) {
+        return json({ error: 'locked' }, 403);
+      }
 
       if (request.method === 'GET') {
-        const raw = await env.DATA.get(storeKey);
-        return json(raw ? JSON.parse(raw) : {});
+        return json(data);
       }
       if (request.method === 'PUT' && key) {
         let value;
         try { value = await request.json(); } catch (e) { return json({ error: 'bad json' }, 400); }
-        const raw = await env.DATA.get(storeKey);
-        const data = raw ? JSON.parse(raw) : {};
+        // meta.code darf nur gesetzt werden, solange die Gruppe noch keinen hat (erstes Anlegen)
+        if (key === 'meta' && value && value.code && savedCode && savedCode !== value.code) {
+          return json({ error: 'locked' }, 403);
+        }
         data[key] = value;
         data._updated = Date.now();
-        // einfacher Größenschutz (KV-Wert max 25 MB; wir deckeln viel früher)
         const out = JSON.stringify(data);
         if (out.length > 800000) return json({ error: 'group full' }, 413);
         await env.DATA.put(storeKey, out);
