@@ -254,20 +254,23 @@
         <label>Name</label>
         <input type="text" id="personName" placeholder="z. B. Jamie" autocomplete="off">
       </div>
-      <div>
-        <input type="file" id="fileInput" accept=".ics,text/calendar" multiple style="display:none" onchange="handleFiles()">
-        <button class="btn btn-accent" onclick="pickFiles()">＋ .ics-Dateien wählen</button>
+    </div>
+    <div style="margin-top:14px">
+      <label>Kalender-Link einfügen</label>
+      <div class="addrow">
+        <div class="grow"><input type="url" id="urlInput" placeholder="webcal://… oder https://….ics" onkeydown="if(event.key==='Enter')handleUrl()"></div>
+        <div><button class="btn btn-accent" id="urlBtn" onclick="handleUrl()">Hinzufügen</button></div>
       </div>
     </div>
     <label class="chk"><input type="checkbox" id="incAllDay" checked> Ganztägige Einträge zählen als belegt</label>
-    <div class="guide-link"><button class="btn btn-ghost btn-sm" onclick="openGuide()">Wie komme ich an meine .ics-Datei? →</button></div>
+    <div class="guide-link"><button class="btn btn-ghost btn-sm" onclick="openGuide()">Woher bekomme ich meinen Kalender-Link? →</button></div>
     <details class="alt">
-      <summary>Oder per Kalender-Link (webcal / ics)</summary>
+      <summary>Link klappt nicht? Stattdessen .ics-Datei hochladen</summary>
       <div class="addrow" style="margin-top:12px">
-        <div class="grow"><input type="url" id="urlInput" placeholder="webcal://… oder https://….ics"></div>
-        <div><button class="btn btn-ghost btn-sm" onclick="handleUrl()">Link laden</button></div>
+        <input type="file" id="fileInput" accept=".ics,text/calendar" multiple style="display:none" onchange="handleFiles()">
+        <div><button class="btn btn-ghost btn-sm" onclick="pickFiles()">＋ .ics-Dateien wählen</button></div>
       </div>
-      <div class="hint">Links werden vom Browser oft blockiert (Sicherheitsrichtlinie). Wenn es fehlschlägt: .ics-Datei herunterladen und oben hochladen – das klappt immer.</div>
+      <div class="hint">Manche Kalender (vor allem iCloud) blockieren den direkten Link aus Sicherheitsgründen. Dann die .ics-Datei exportieren und hier hochladen – das klappt immer.</div>
     </details>
   </div>
 
@@ -324,11 +327,11 @@
 <div class="overlay" id="guide" style="display:none" onclick="if(event.target===this)closeGuide()">
   <div class="sheet">
     <button class="close-x" onclick="closeGuide()">✕</button>
-    <h3>So bekommst du deine Kalender-Datei</h3>
-    <p class="sub2">Eine .ics-Datei ist einfach der Export deines Kalenders. Wo liegt deiner?</p>
+    <h3>So bekommst du deinen Kalender-Link</h3>
+    <p class="sub2">Du brauchst nur den Freigabe-Link deines Kalenders. Wo liegt deiner?</p>
     <div class="seg">
-      <button data-k="mac" onclick="setGuideTab('mac')">Mac</button>
       <button data-k="iphone" onclick="setGuideTab('iphone')">iPhone</button>
+      <button data-k="mac" onclick="setGuideTab('mac')">Mac / iCloud</button>
       <button data-k="supershift" onclick="setGuideTab('supershift')">Supershift</button>
       <button data-k="google" onclick="setGuideTab('google')">Google</button>
     </div>
@@ -542,17 +545,40 @@ async function handleFiles(){
   if(!cals.length)return;
   await addEntry(name,cals);
 }
+async function fetchIcs(url){
+  // 1) direct, 2) public CORS proxies as fallback
+  const tries=[
+    u=>u,
+    u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
+    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+    u=>'https://thingproxy.freeboard.io/fetch/'+u
+  ];
+  for(const build of tries){
+    try{
+      const res=await fetch(build(url),{redirect:'follow'});
+      if(!res.ok)continue;
+      const text=await res.text();
+      if(text&&text.indexOf('BEGIN:VCALENDAR')!==-1)return text;
+    }catch(e){/* next */}
+  }
+  return null;
+}
 async function handleUrl(){
   let url=$('urlInput').value.trim(); if(!url)return;
-  const name=$('personName').value.trim()||'Unbenannt';
+  const name=$('personName').value.trim();
+  if(!name){ toast('Erst einen Namen eintragen'); $('personName').focus(); return; }
+  try{localStorage.setItem('fs2.name',name);}catch(e){}
   if(url.startsWith('webcal://'))url='https://'+url.slice(9);
+  const btn=$('urlBtn'); const old=btn.textContent;
+  btn.disabled=true; btn.textContent='Lädt…';
+  const text=await fetchIcs(url);
+  btn.disabled=false; btn.textContent=old;
+  if(!text){ toast('Link ließ sich nicht laden – bitte .ics-Datei hochladen'); return; }
+  let label='Link'; try{label=new URL(url).hostname.replace(/^www\./,'');}catch(e){}
   try{
-    const res=await fetch(url); if(!res.ok)throw 0;
-    const text=await res.text();
-    let label='Link'; try{label=new URL(url).hostname;}catch(e){}
     await addEntry(name,[{label,incAllDay:$('incAllDay').checked,busy:parseICS(text)}]);
     $('urlInput').value='';
-  }catch(e){ toast('Link blockiert – bitte die .ics-Datei hochladen'); }
+  }catch(e){ toast('Kalender konnte nicht gelesen werden'); }
 }
 async function addEntry(name,cals){
   const existing=allMembers().find(m=>m.name.toLowerCase()===name.toLowerCase()&&(m.mine||ctx.mode==='local')&&!m.demo);
@@ -735,8 +761,8 @@ function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('sho
 /* ================= tour ================= */
 const TOUR=[
  {t:'Willkommen',h:'So funktioniert Lange Leitung',p:'Jede Person legt ihren Kalender als .ics-Datei dazu. Die App zeigt, wann alle gleichzeitig frei sind. Termindetails bleiben privat.',el:null},
- {t:'Schritt 1 von 4',h:'Kalender-Datei holen',p:'Exportiere deinen Kalender als .ics-Datei – am Mac in zwei Klicks, am iPhone über den Teilen-Link. Die Anleitung zeigt es dir Schritt für Schritt.',el:'cardAdd',btn:'Anleitung ansehen'},
- {t:'Schritt 2 von 4',h:'Name rein, Datei hochladen',p:'Namen eintragen, .ics-Datei auswählen – fertig. Dateien von anderen? Deren Namen eintragen und genauso hochladen.',el:'cardAdd'},
+ {t:'Schritt 1 von 4',h:'Kalender-Link holen',p:'Schalte deinen Kalender auf „öffentlich“ und kopiere den Freigabe-Link – am iPhone in vier Schritten. Die Anleitung zeigt es dir genau.',el:'cardAdd',btn:'Anleitung ansehen'},
+ {t:'Schritt 2 von 4',h:'Name rein, Link einfügen',p:'Namen eintragen, Link einfügen, „Hinzufügen“ – fertig. Für jemand anderen? Dessen Namen eintragen und dessen Link einfügen.',el:'cardAdd'},
  {t:'Schritt 3 von 4',h:'Nur die Zeit zählt',p:'Kein Datum nötig – gesucht wird ab heute. Stell nur ein, von wann bis wann ihr könnt und wie lang es mindestens sein soll.',el:'cardTime'},
  {t:'Schritt 4 von 4',h:'Finden & teilen',p:'Ein Klick – der beste Slot steht oben, Antippen kopiert ihn. Mit „Runde als Link teilen“ schickst du den Stand an alle – jeder ergänzt sich selbst und teilt weiter.',el:'ctaBtn'}
 ];
@@ -763,31 +789,33 @@ try{ if(!localStorage.getItem('fs2.tour')) setTimeout(startTour,700); }catch(e){
 
 /* ================= export guide ================= */
 const GUIDES={
- mac:{tag:'Einfachster Weg · nichts wird öffentlich',steps:[
-  'Kalender-App auf dem Mac öffnen.',
-  'Links in der Seitenleiste deinen Kalender anklicken.',
-  'Oben im Menü: Ablage → Exportieren → Exportieren…',
-  'Die .ics-Datei sichern und hier hochladen. Fertig.']},
- iphone:{steps:[
+ iphone:{tag:'Am schnellsten vom Handy',steps:[
   'Kalender-App öffnen → unten auf „Kalender“ tippen.',
   'Beim gewünschten Kalender auf das ⓘ tippen.',
-  '„Öffentlicher Kalender“ einschalten → „Link teilen …“ → Link kopieren.',
-  'Link im Browser einfügen und vorne webcal:// durch https:// ersetzen → öffnen.',
-  'Die heruntergeladene .ics-Datei hier hochladen.'],
+  '„Öffentlicher Kalender“ einschalten.',
+  '„Link teilen …“ → „Kopieren“.',
+  'Den kopierten webcal-Link oben einfügen. Fertig.'],
   note:'Klappt nur mit iCloud-Kalendern. Ein Kalender „Auf meinem iPhone“ hat keine Teilen-Option – Termine dafür erst in einen iCloud-Kalender legen.'},
+ mac:{steps:[
+  'Auf iCloud.com einloggen → Kalender öffnen.',
+  'Mauszeiger über deinen Kalender → auf das Funk-/Teilen-Symbol klicken.',
+  '„Öffentlicher Kalender“ aktivieren.',
+  'Den angezeigten Link (beginnt mit webcal://) kopieren.',
+  'Oben einfügen. Fertig.'],
+  note:'Alternativ in der Kalender-App auf dem Mac: Kalender → Ablage → Exportieren, dann die Datei über „Link klappt nicht?“ hochladen.'},
  supershift:{steps:[
   'In den Supershift-Einstellungen die Kalender-Synchronisation einschalten.',
-  'Deine Schichten erscheinen dann als eigener Kalender in der Kalender-App.',
-  'Diesen Kalender exportieren: am Mac über Ablage → Exportieren, am iPhone über den Teilen-Link (Tab „iPhone“).'],
-  note:'Supershift erzeugt selbst keine .ics-Datei – der Weg führt immer über den Gerätekalender.'},
+  'Deine Schichten erscheinen dann als eigener Kalender in der Kalender-App bzw. in iCloud.',
+  'Diesen iCloud-Kalender teilen (Tab „iPhone“ oder „Mac“) und den Link kopieren.'],
+  note:'Supershift hat keinen eigenen Link – der Weg führt immer über den iCloud-Kalender.'},
  google:{steps:[
   'Google Kalender am Rechner öffnen → Zahnrad → Einstellungen.',
   'Links deinen Kalender wählen → „Kalender einbinden“.',
   '„Geheime Adresse im iCal-Format“ kopieren.',
-  'Im Browser öffnen – die .ics-Datei lädt herunter. Hochladen.'],
-  note:'Die geheime Adresse nicht weitergeben – sie zeigt deinen kompletten Kalender.'}
+  'Oben einfügen. Fertig.'],
+  note:'Die geheime Adresse nicht öffentlich weitergeben – sie zeigt deinen kompletten Kalender.'}
 };
-let gTab='mac';
+let gTab='iphone';
 function openGuide(){ $('guide').style.display='flex'; setGuideTab(gTab); }
 function closeGuide(){ $('guide').style.display='none'; }
 function setGuideTab(k){ gTab=k;
