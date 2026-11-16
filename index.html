@@ -207,6 +207,45 @@
   .gtag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
     background:var(--green-chip);color:var(--green-chip-ink);border-radius:999px;padding:3px 9px}
   .guide-link{margin-top:14px}
+  .muted{color:var(--muted);font-size:14px}
+  /* ---------- main tabs ---------- */
+  .maintabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:5px;margin-top:22px;box-shadow:var(--shadow);overflow-x:auto}
+  .mtab{flex:1;border:none;background:none;padding:10px 12px;border-radius:10px;font-size:14px;font-weight:600;
+    cursor:pointer;color:var(--muted);font-family:var(--sans);white-space:nowrap;transition:all .15s}
+  .mtab.active{background:var(--accent-soft);color:var(--accent-ink)}
+  .mtab:hover:not(.active){color:var(--ink)}
+  /* ---------- wanna-dos ---------- */
+  .wanna-list,.exp-list{list-style:none;padding:0;margin:16px 0 0}
+  .wanna-item{display:flex;align-items:center;gap:12px;padding:13px 4px;border-bottom:1px solid var(--line-soft)}
+  .wanna-item:last-child{border-bottom:none}
+  .wanna-item.done .wt{text-decoration:line-through;color:var(--faint)}
+  .wt{flex:1;font-weight:550;font-size:15px}
+  .wmeta{font-size:12px;color:var(--faint)}
+  .like{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:#fff;border-radius:999px;
+    padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s}
+  .like.on{background:#fdeaea;border-color:#f3c0c0;color:#c0392b}
+  .like:hover{transform:translateY(-1px)}
+  .wplan{border:none;background:var(--accent-soft);color:var(--accent-ink);border-radius:999px;padding:6px 12px;
+    font-size:12.5px;font-weight:600;cursor:pointer}
+  /* ---------- polls ---------- */
+  .poll{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;background:#fff}
+  .poll h4{margin:0 0 4px;font-size:16px;font-family:var(--serif);font-weight:500}
+  .poll-opt{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line-soft)}
+  .poll-opt .ptxt{flex:1;font-size:14px}
+  .vote{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;font-size:16px;cursor:pointer;line-height:1}
+  .vote.on{background:var(--green-chip);border-color:var(--green-chip-line)}
+  .vcount{font-size:12px;color:var(--faint);min-width:52px;text-align:right}
+  .poll-best{background:var(--green-chip);border:1px solid var(--green-chip-line);border-radius:10px;padding:8px 12px;
+    font-size:13px;font-weight:600;color:var(--green-chip-ink);margin-top:10px}
+  /* ---------- expenses ---------- */
+  .exp-item{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line-soft);font-size:14px}
+  .exp-item:last-child{border-bottom:none}
+  .exp-amt{font-weight:650;white-space:nowrap}
+  .settle{background:var(--accent-soft);border-radius:12px;padding:14px 16px;margin-top:16px}
+  .settle h4{margin:0 0 8px;font-size:14px;color:var(--accent-ink)}
+  .settle-row{font-size:14px;padding:4px 0}
+  .settle-row b{color:var(--ink)}
   /* ---------- responsive fixes ---------- */
   .tour{max-height:70vh;overflow-y:auto}
   .tour .t-nav{flex-wrap:wrap}
@@ -267,8 +306,9 @@
     <div id="recentGroups"></div>
     <div style="margin-top:14px">
       <label>Neue Gruppe anlegen</label>
-      <div class="addrow">
-        <div class="grow"><input type="text" id="newGroupName" placeholder="z. B. Lange Leitung" autocomplete="off" onkeydown="if(event.key==='Enter')createGroup()"></div>
+      <input type="text" id="newGroupName" placeholder="Gruppenname, z. B. Lange Leitung" autocomplete="off" onkeydown="if(event.key==='Enter')createGroup()">
+      <div class="addrow" style="margin-top:8px">
+        <div class="grow"><input type="text" id="newGroupCode" placeholder="Zugangscode (optional)" autocomplete="off" onkeydown="if(event.key==='Enter')createGroup()"></div>
         <div><button class="btn btn-accent" onclick="createGroup()">Anlegen</button></div>
       </div>
     </div>
@@ -292,6 +332,17 @@
     <p class="sub">Wann können wir alle? Kalender rein, gemeinsame Lücke raus.</p>
     <div class="avatars" id="avatars"></div>
   </div>
+
+  <!-- ===== Tab-Navigation ===== -->
+  <div class="maintabs" id="mainTabs">
+    <button class="mtab active" data-tab="plan" onclick="switchMain('plan')">📅 Termin finden</button>
+    <button class="mtab" data-tab="wanna" onclick="switchMain('wanna')">💡 Wanna-dos</button>
+    <button class="mtab" data-tab="poll" onclick="switchMain('poll')">🗳️ Umfragen</button>
+    <button class="mtab" data-tab="cost" onclick="switchMain('cost')">💶 Kosten</button>
+  </div>
+
+  <!-- ===== TAB: Termin finden ===== -->
+  <div class="tabpane" id="pane-plan">
 
   <!-- 1 · Kalender hinzufügen -->
   <div class="card" id="cardAdd">
@@ -364,6 +415,46 @@
   <div style="text-align:center;margin-top:26px">
     <button class="btn btn-ghost" onclick="openGuide()">Anleitung: So exportierst du deinen Kalender</button>
   </div>
+  </div><!-- /pane-plan -->
+
+  <!-- ===== TAB: Wanna-dos ===== -->
+  <div class="tabpane" id="pane-wanna" style="display:none">
+    <div class="card">
+      <div class="step"><span class="no">💡</span><h2>Wanna-dos</h2></div>
+      <p class="muted" style="margin:-8px 0 14px">Was wollt ihr zusammen machen? Ideen sammeln, abstimmen, planen.</p>
+      <div class="addrow">
+        <div class="grow"><input type="text" id="wannaInput" placeholder="z. B. Zusammen kochen, Wandern, Kino…" onkeydown="if(event.key==='Enter')addWanna()"></div>
+        <div><button class="btn btn-accent" onclick="addWanna()">Hinzufügen</button></div>
+      </div>
+      <ul class="wanna-list" id="wannaList"></ul>
+    </div>
+  </div>
+
+  <!-- ===== TAB: Umfragen ===== -->
+  <div class="tabpane" id="pane-poll" style="display:none">
+    <div class="card">
+      <div class="step"><span class="no">🗳️</span><h2>Terminvorschlag-Umfrage</h2></div>
+      <p class="muted" style="margin:-8px 0 14px">Mehrere Termine vorschlagen, alle stimmen ab – wer kann wann?</p>
+      <button class="btn btn-accent btn-sm" onclick="newPoll()">+ Neue Umfrage</button>
+      <div id="pollList" style="margin-top:16px"></div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: Kosten ===== -->
+  <div class="tabpane" id="pane-cost" style="display:none">
+    <div class="card">
+      <div class="step"><span class="no">💶</span><h2>Kosten-Splitter</h2></div>
+      <p class="muted" style="margin:-8px 0 14px">Wer hat was ausgelegt? Am Ende: wer schuldet wem wie viel.</p>
+      <div class="row">
+        <div style="flex:2"><input type="text" id="expWho" placeholder="Wer hat gezahlt?" onkeydown="if(event.key==='Enter')addExpense()"></div>
+        <div style="flex:3"><input type="text" id="expWhat" placeholder="Wofür?" onkeydown="if(event.key==='Enter')addExpense()"></div>
+        <div style="flex:1"><input type="number" id="expAmount" placeholder="€" min="0" step="0.01" onkeydown="if(event.key==='Enter')addExpense()"></div>
+      </div>
+      <button class="btn btn-accent btn-sm" style="margin-top:12px" onclick="addExpense()">+ Ausgabe eintragen</button>
+      <ul class="exp-list" id="expList"></ul>
+      <div id="settleBox"></div>
+    </div>
+  </div>
 
   <footer>
     Termindetails bleiben privat – geteilt werden nur Belegt-Zeiten.<br>
@@ -409,10 +500,14 @@ const API='https://lange-leitung-proxy.jamie-lee-riedel.workers.dev';
 let groupId=null;             // aktuelles Gruppen-Schubfach
 let groupName='Lange Leitung';
 let members=[];               // gemeinsame Mitgliederliste (aus KV)
+let wannados=[];              // Ideen-Liste
+let polls=[];                 // Umfragen
+let expenses=[];              // Ausgaben
 let localEntries=[];          // Fallback-Cache, falls KV nicht erreichbar
 let required={};              // entryId -> false if excluded
 let pendingDelete=null;
 let syncTimer=null, lastUpdated=0, saving=false;
+let myId=null;               // stabile Geräte-ID für Likes/Votes
 
 const $=id=>document.getElementById(id);
 const esc=s=>(s+'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -435,25 +530,27 @@ loadLocal(); applySettings(); initGroup();
 function loadLocal(){
   try{
     const n=localStorage.getItem('fs2.name'); if(n)$('personName').value=n;
-  }catch(e){}
+    myId=localStorage.getItem('fs2.myid'); if(!myId){ myId=uuid(); localStorage.setItem('fs2.myid',myId); }
+  }catch(e){ myId=uuid(); }
 }
 function persistLocal(){ try{
-  if(groupId) localStorage.setItem('fs2.cache.'+groupId,JSON.stringify({groupName,members}));
+  if(groupId) localStorage.setItem('fs2.cache.'+groupId,JSON.stringify({groupName,members,wannados,polls,expenses,code:groupCode}));
 }catch(e){} }
 
 /* ================= Gruppen ================= */
+let groupCode='';            // Zugangscode der Gruppe
 function recentGroups(){ try{return JSON.parse(localStorage.getItem('fs2.recent')||'[]');}catch(e){return [];} }
-function rememberGroup(id,name){
+function rememberGroup(id,name,code){
   let r=recentGroups().filter(g=>g.id!==id);
-  r.unshift({id,name,at:Date.now()});
+  r.unshift({id,name,code:code||'',at:Date.now()});
   try{localStorage.setItem('fs2.recent',JSON.stringify(r.slice(0,8)));}catch(e){}
 }
-function groupLink(id){ return location.origin+location.pathname+'#g='+id; }
+// Code steckt bequem im Link (nach ~), damit „Link klicken = direkt rein" funktioniert
+function groupLink(id,code){ return location.origin+location.pathname+'#g='+id+(code?'~'+encodeURIComponent(code):''); }
 
 function initGroup(){
-  // Gruppe aus dem Link?
-  const m=location.hash.match(/[#&]g=([A-Za-z0-9_-]{4,64})/);
-  if(m){ enterGroup(m[1]); return; }
+  const m=location.hash.match(/[#&]g=([A-Za-z0-9_-]{4,64})(?:~([^&]+))?/);
+  if(m){ enterGroup(m[1], null, m[2]?decodeURIComponent(m[2]):null); return; }
   showGate();
 }
 function showGate(){
@@ -461,61 +558,99 @@ function showGate(){
   $('groupGate').style.display='flex';
   const r=recentGroups();
   $('recentGroups').innerHTML = r.length
-    ? '<label>Deine Gruppen</label>'+r.map(g=>`<button class="btn btn-ghost" style="width:100%;justify-content:space-between;margin-bottom:8px" onclick="enterGroup('${g.id}')"><span>${esc(g.name)}</span><span style="color:var(--faint)">öffnen →</span></button>`).join('')
+    ? '<label>Deine Gruppen</label>'+r.map(g=>`<button class="btn btn-ghost" style="width:100%;justify-content:space-between;margin-bottom:8px" onclick="enterGroup('${g.id}',null,${g.code?`'${esc(g.code)}'`:'null'})"><span>${esc(g.name)}</span><span style="color:var(--faint)">öffnen →</span></button>`).join('')
     : '';
 }
 function createGroup(){
   const name=$('newGroupName').value.trim(); if(!name){ $('newGroupName').focus(); return; }
+  let code=($('newGroupCode')?$('newGroupCode').value.trim():'');
+  if(!code) code=Math.random().toString(36).slice(2,6); // kurzer Default-Code
   const id=(name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,24)||'gruppe')+'-'+Math.random().toString(36).slice(2,8);
-  groupName=name;
-  enterGroup(id,name);
+  groupName=name; groupCode=code;
+  enterGroup(id,name,code,true);
 }
-async function enterGroup(id,presetName){
+async function enterGroup(id,presetName,code,isNew){
   groupId=id;
   if(presetName)groupName=presetName;
+  if(code!=null)groupCode=code;
   history.replaceState(null,'',location.pathname+'#g='+id);
   $('groupGate').style.display='none';
   $('appWrap').style.display='';
-  // Cache sofort zeigen
-  try{ const c=JSON.parse(localStorage.getItem('fs2.cache.'+id)||'null'); if(c){ groupName=c.groupName||groupName; members=c.members||[]; } }catch(e){}
+  try{ const c=JSON.parse(localStorage.getItem('fs2.cache.'+id)||'null'); if(c){ groupName=c.groupName||groupName; members=c.members||[]; wannados=c.wannados||[]; polls=c.polls||[]; expenses=c.expenses||[]; if(c.code&&code==null)groupCode=c.code; } }catch(e){}
   renderAll();
-  await loadGroup();
-  rememberGroup(id,groupName);
+  const ok=await loadGroup(isNew);
+  if(ok==='locked'){ askCode(id); return; }
+  if(isNew) await saveMeta();
+  rememberGroup(id,groupName,groupCode);
   startSync();
 }
-function switchGroup(){ stopSync(); groupId=null; members=[]; showGate(); }
+function askCode(id){
+  stopSync();
+  $('appWrap').style.display='none';
+  $('groupGate').style.display='flex';
+  $('recentGroups').innerHTML=`<label>Zugangscode für „${esc(groupName||'diese Gruppe')}"</label>
+    <div class="addrow"><div class="grow"><input type="text" id="codeInput" placeholder="Code eingeben" onkeydown="if(event.key==='Enter')tryCode('${id}')"></div>
+    <div><button class="btn btn-accent" onclick="tryCode('${id}')">Öffnen</button></div></div>
+    <div class="gnote" style="margin-top:10px">Diese Gruppe ist mit einem Code geschützt. Frag jemanden aus der Runde oder nutze den vollständigen Einladungs-Link.</div>`;
+  document.querySelector('#groupGate h3').textContent='Geschützte Gruppe';
+}
+async function tryCode(id){
+  const code=$('codeInput').value.trim(); if(!code)return;
+  groupCode=code;
+  const ok=await loadGroup(false);
+  if(ok==='locked'){ toast('Code stimmt nicht'); return; }
+  document.querySelector('#groupGate h3').textContent='Willkommen';
+  $('groupGate').style.display='none'; $('appWrap').style.display='';
+  rememberGroup(id,groupName,groupCode); renderAll(); startSync();
+}
+function switchGroup(){ stopSync(); groupId=null; members=[];wannados=[];polls=[];expenses=[];groupCode='';
+  document.querySelector('#groupGate h3').textContent='Willkommen'; showGate(); }
 
 /* ================= KV-Sync ================= */
-async function loadGroup(){
-  if(!groupId)return;
+function applyData(d){
+  if(Array.isArray(d.members)) members=d.members;
+  if(Array.isArray(d.wannados)) wannados=d.wannados;
+  if(Array.isArray(d.polls)) polls=d.polls;
+  if(Array.isArray(d.expenses)) expenses=d.expenses;
+  if(d.meta && d.meta.name) groupName=d.meta.name;
+  if(d.meta && d.meta.code!=null && !groupCode) groupCode=d.meta.code;
+  lastUpdated=d._updated||0;
+}
+async function loadGroup(isNew){
+  if(!groupId)return false;
   try{
-    const res=await fetch(API+'/group/'+groupId); if(!res.ok)return;
+    const res=await fetch(API+'/group/'+groupId); if(!res.ok)return false;
     const d=await res.json();
     if(d && typeof d==='object'){
-      if(Array.isArray(d.members)) members=d.members;
-      if(d.meta && d.meta.name) groupName=d.meta.name;
-      lastUpdated=d._updated||0;
+      // Code-Schutz: existiert eine Gruppe mit Code und unserer stimmt nicht?
+      const savedCode=d.meta&&d.meta.code;
+      const groupExists=!!(d.meta||d.members);
+      if(savedCode && groupExists && !isNew && savedCode!==groupCode) return 'locked';
+      applyData(d);
       persistLocal(); renderAll();
+      return true;
     }
-  }catch(e){/* offline: Cache bleibt */}
+  }catch(e){/* offline: Cache bleibt */ return true; }
+  return true;
 }
-async function saveMembers(){
+async function saveKey(key,value){
   persistLocal();
   if(!groupId)return false;
   try{
     saving=true;
-    const res=await fetch(API+'/group/'+groupId+'/members',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(members)});
-    saving=false;
+    const res=await fetch(API+'/group/'+groupId+'/'+key,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});
+    saving=false; lastUpdated=Date.now();
     return res.ok;
   }catch(e){ saving=false; return false; }
 }
-async function saveMeta(){
-  if(!groupId)return;
-  try{ await fetch(API+'/group/'+groupId+'/meta',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:groupName})}); }catch(e){}
-}
+async function saveMembers(){ return saveKey('members',members); }
+async function saveWannados(){ return saveKey('wannados',wannados); }
+async function savePolls(){ return saveKey('polls',polls); }
+async function saveExpenses(){ return saveKey('expenses',expenses); }
+async function saveMeta(){ if(!groupId)return; try{ await fetch(API+'/group/'+groupId+'/meta',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:groupName,code:groupCode})}); }catch(e){} }
 function startSync(){ stopSync(); syncTimer=setInterval(async()=>{ if(saving)return;
   try{ const res=await fetch(API+'/group/'+groupId); if(!res.ok)return; const d=await res.json();
-    if(d && (d._updated||0)>lastUpdated){ if(Array.isArray(d.members))members=d.members; if(d.meta&&d.meta.name)groupName=d.meta.name; lastUpdated=d._updated||0; persistLocal(); renderAll(); }
+    if(d && (d._updated||0)>lastUpdated){ applyData(d); persistLocal(); renderAll(); }
   }catch(e){}
 },5000); }
 function stopSync(){ if(syncTimer){clearInterval(syncTimer);syncTimer=null;} }
@@ -569,6 +704,8 @@ function renderAll(){
     rs.style.display='block';
     $('reqPills').innerHTML=ms.map(m=>`<label><input type="checkbox" ${required[m.id]===false?'':'checked'} onchange="required['${m.id}']=this.checked">${esc(m.name)}</label>`).join('');
   } else rs.style.display='none';
+  // neue Funktionen
+  renderWanna(); renderPolls(); renderExpenses();
 }
 function askDelete(id){ pendingDelete=id; renderAll(); setTimeout(()=>{if(pendingDelete===id){pendingDelete=null;renderAll();}},4000); }
 async function removeMember(id){
@@ -876,10 +1013,159 @@ function setGuideTab(k){ gTab=k;
 
 /* ================= Gruppen-Link teilen ================= */
 function shareRound(){
-  const url=groupLink(groupId);
+  const url=groupLink(groupId,groupCode);
   const done=()=>toast('Gruppen-Link kopiert – ab in den Gruppenchat!');
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done).catch(()=>fallbackCopy(url,done));
   else fallbackCopy(url,done);
+}
+
+/* ================= Tab-Umschaltung ================= */
+function switchMain(tab){
+  document.querySelectorAll('.mtab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  document.querySelectorAll('.tabpane').forEach(p=>p.style.display=(p.id==='pane-'+tab)?'':'none');
+}
+
+/* ================= Wanna-dos ================= */
+async function addWanna(){
+  const t=$('wannaInput').value.trim(); if(!t)return;
+  await loadGroup(false);
+  wannados.push({id:uuid(),text:t,likes:[],done:false,at:Date.now()});
+  $('wannaInput').value='';
+  renderWanna(); await saveWannados();
+}
+async function toggleLike(id){
+  await loadGroup(false);
+  const w=wannados.find(x=>x.id===id); if(!w)return;
+  w.likes=w.likes||[];
+  const i=w.likes.indexOf(myId);
+  if(i>=0)w.likes.splice(i,1); else w.likes.push(myId);
+  renderWanna(); await saveWannados();
+}
+async function toggleWannaDone(id){
+  await loadGroup(false);
+  const w=wannados.find(x=>x.id===id); if(!w)return;
+  w.done=!w.done; renderWanna(); await saveWannados();
+}
+async function removeWanna(id){
+  await loadGroup(false);
+  wannados=wannados.filter(x=>x.id!==id); renderWanna(); await saveWannados();
+}
+function planWanna(id){
+  const w=wannados.find(x=>x.id===id); if(!w)return;
+  switchMain('plan');
+  window.scrollTo({top:0,behavior:'smooth'});
+  toast('Findet einen Termin für: '+w.text);
+}
+function renderWanna(){
+  const el=$('wannaList'); if(!el)return;
+  const sorted=wannados.slice().sort((a,b)=>(b.likes?b.likes.length:0)-(a.likes?a.likes.length:0)||(a.at||0)-(b.at||0));
+  if(!sorted.length){ el.innerHTML='<li class="empty-members" style="font-style:italic">Noch keine Ideen – wirf die erste rein.</li>'; return; }
+  el.innerHTML=sorted.map(w=>{
+    const likes=w.likes||[]; const liked=likes.indexOf(myId)>=0;
+    return `<li class="wanna-item ${w.done?'done':''}">
+      <span class="wt" onclick="toggleWannaDone('${w.id}')" title="Als erledigt markieren" style="cursor:pointer">${esc(w.text)}</span>
+      <button class="wplan" onclick="planWanna('${w.id}')">Termin finden</button>
+      <button class="like ${liked?'on':''}" onclick="toggleLike('${w.id}')">❤ ${likes.length||''}</button>
+      <button class="x" onclick="removeWanna('${w.id}')">×</button>
+    </li>`;}).join('');
+}
+
+/* ================= Umfragen ================= */
+async function newPoll(){
+  const title=prompt('Worum geht die Umfrage? (z. B. „Wann treffen wir uns?")'); if(!title)return;
+  const optsRaw=prompt('Optionen, mit Komma getrennt (z. B. Fr 20 Uhr, Sa 18 Uhr, So Brunch):'); if(!optsRaw)return;
+  const options=optsRaw.split(',').map(s=>s.trim()).filter(Boolean).map(t=>({id:uuid(),text:t,votes:[]}));
+  if(!options.length)return;
+  await loadGroup(false);
+  polls.unshift({id:uuid(),title:title.trim(),options,at:Date.now()});
+  renderPolls(); await savePolls();
+}
+async function votePoll(pollId,optId){
+  await loadGroup(false);
+  const p=polls.find(x=>x.id===pollId); if(!p)return;
+  const o=p.options.find(x=>x.id===optId); if(!o)return;
+  o.votes=o.votes||[];
+  const i=o.votes.indexOf(myId);
+  if(i>=0)o.votes.splice(i,1); else o.votes.push(myId);
+  renderPolls(); await savePolls();
+}
+async function removePoll(id){
+  if(!confirm('Umfrage löschen?'))return;
+  await loadGroup(false);
+  polls=polls.filter(x=>x.id!==id); renderPolls(); await savePolls();
+}
+function renderPolls(){
+  const el=$('pollList'); if(!el)return;
+  if(!polls.length){ el.innerHTML='<p class="empty-members" style="font-style:italic">Noch keine Umfrage. Leg eine an, um abzustimmen.</p>'; return; }
+  el.innerHTML=polls.map(p=>{
+    const max=Math.max(0,...p.options.map(o=>(o.votes||[]).length));
+    const best=p.options.filter(o=>(o.votes||[]).length===max && max>0);
+    return `<div class="poll">
+      <div style="display:flex;align-items:start;gap:8px"><h4 style="flex:1">${esc(p.title)}</h4><button class="x" onclick="removePoll('${p.id}')">×</button></div>
+      ${p.options.map(o=>{const v=o.votes||[];const mine=v.indexOf(myId)>=0;
+        return `<div class="poll-opt">
+          <button class="vote ${mine?'on':''}" onclick="votePoll('${p.id}','${o.id}')">${mine?'✓':'○'}</button>
+          <span class="ptxt">${esc(o.text)}</span>
+          <span class="vcount">${v.length} Stimme${v.length===1?'':'n'}</span>
+        </div>`;}).join('')}
+      ${best.length?`<div class="poll-best">Vorne: ${best.map(o=>esc(o.text)).join(', ')}</div>`:''}
+    </div>`;}).join('');
+}
+
+/* ================= Kosten-Splitter ================= */
+async function addExpense(){
+  const who=$('expWho').value.trim();
+  const what=$('expWhat').value.trim();
+  const amt=parseFloat(($('expAmount').value||'').replace(',','.'));
+  if(!who||!(amt>0)){ toast('Name und Betrag eintragen'); return; }
+  await loadGroup(false);
+  expenses.push({id:uuid(),who,what:what||'—',amount:Math.round(amt*100)/100,at:Date.now()});
+  $('expWho').value='';$('expWhat').value='';$('expAmount').value='';
+  renderExpenses(); await saveExpenses();
+}
+async function removeExpense(id){
+  await loadGroup(false);
+  expenses=expenses.filter(x=>x.id!==id); renderExpenses(); await saveExpenses();
+}
+function renderExpenses(){
+  const el=$('expList'); if(!el)return;
+  if(!expenses.length){ el.innerHTML='<li class="empty-members" style="font-style:italic">Noch keine Ausgaben eingetragen.</li>'; $('settleBox').innerHTML=''; return; }
+  el.innerHTML=expenses.map(e=>`<li class="exp-item">
+    <span style="flex:1"><b>${esc(e.who)}</b> · ${esc(e.what)}</span>
+    <span class="exp-amt">${e.amount.toFixed(2).replace('.',',')} €</span>
+    <button class="x" onclick="removeExpense('${e.id}')">×</button>
+  </li>`).join('');
+  renderSettlement();
+}
+function renderSettlement(){
+  const box=$('settleBox'); if(!box)return;
+  // Teilnehmer = alle, die gezahlt haben
+  const people=[...new Set(expenses.map(e=>e.who))];
+  if(people.length<2){ box.innerHTML='<div class="settle"><h4>Aufteilung</h4><div class="settle-row">Erst wenn mindestens zwei Personen etwas ausgelegt haben, rechne ich aus, wer wem was schuldet.</div></div>'; return; }
+  const total=expenses.reduce((a,e)=>a+e.amount,0);
+  const share=total/people.length;
+  // Saldo pro Person
+  const bal={}; people.forEach(p=>bal[p]=0);
+  expenses.forEach(e=>bal[e.who]+=e.amount);
+  people.forEach(p=>bal[p]-=share);
+  // Ausgleich: Schuldner -> Gläubiger
+  const debt=people.map(p=>({p,v:Math.round(bal[p]*100)/100})).filter(x=>Math.abs(x.v)>0.009);
+  const payers=debt.filter(x=>x.v<0).sort((a,b)=>a.v-b.v);
+  const getters=debt.filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+  const tx=[];
+  let i=0,j=0;
+  const P=payers.map(x=>({...x})),G=getters.map(x=>({...x}));
+  while(i<P.length&&j<G.length){
+    const give=Math.min(-P[i].v,G[j].v);
+    if(give>0.009) tx.push({from:P[i].p,to:G[j].p,amt:Math.round(give*100)/100});
+    P[i].v+=give; G[j].v-=give;
+    if(Math.abs(P[i].v)<0.01)i++;
+    if(Math.abs(G[j].v)<0.01)j++;
+  }
+  box.innerHTML=`<div class="settle">
+    <h4>Aufteilung · gesamt ${total.toFixed(2).replace('.',',')} € · ${share.toFixed(2).replace('.',',')} € pro Person</h4>
+    ${tx.length?tx.map(t=>`<div class="settle-row"><b>${esc(t.from)}</b> → <b>${esc(t.to)}</b>: ${t.amt.toFixed(2).replace('.',',')} €</div>`).join(''):'<div class="settle-row">Alles ausgeglichen 🎉</div>'}
+  </div>`;
 }
 
 /* ================= demo ================= */
