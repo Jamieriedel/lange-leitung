@@ -255,13 +255,34 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<!-- ======= Gruppen-Start ======= -->
+<div class="overlay" id="groupGate" style="display:none">
+  <div class="sheet" style="max-width:440px">
+    <div style="text-align:center;margin-bottom:6px">
+      <div class="brand" style="margin-bottom:6px">Lange Leitung</div>
+      <h3 style="padding-right:0">Willkommen</h3>
+      <p class="sub2">Wähle eine Gruppe oder leg eine neue an.</p>
+    </div>
+    <div id="recentGroups"></div>
+    <div style="margin-top:14px">
+      <label>Neue Gruppe anlegen</label>
+      <div class="addrow">
+        <div class="grow"><input type="text" id="newGroupName" placeholder="z. B. Lange Leitung" autocomplete="off" onkeydown="if(event.key==='Enter')createGroup()"></div>
+        <div><button class="btn btn-accent" onclick="createGroup()">Anlegen</button></div>
+      </div>
+    </div>
+    <div class="gnote" style="margin-top:16px">Jede Gruppe hat ihren eigenen gemeinsamen Speicher. Den Link teilst du mit deiner Runde – wer ihn öffnet, ist dabei. Kein Login nötig.</div>
+  </div>
+</div>
+
+<div class="wrap" id="appWrap">
 
   <div class="topbar">
     <div class="brand">Lange Leitung</div>
-    <div style="display:flex;gap:10px;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-ghost btn-sm" onclick="switchGroup()">Gruppe wechseln</button>
       <button class="btn btn-ghost btn-sm" onclick="startTour()">Anleitung</button>
-      <div class="mode" id="modePill"><span class="dot"></span><span id="modeTxt">Nur dieses Gerät</span></div>
     </div>
   </div>
 
@@ -384,12 +405,14 @@
 /* ================= state ================= */
 const COLORS=['#2e5742','#a35632','#44588e','#8a6d3b','#7b4a6b','#3f7d7a','#9d4a4a','#5e6b3f'];
 const DAY=86400000, HORIZON=90;
-let ctx={mode:'local',db:null,user:null,uid:null,isOwner:false,canWrite:false};
-let sharedDocs={};            // uid -> {entries:[...]}
-let localEntries=[];          // entries only in this browser
+const API='https://lange-leitung-proxy.jamie-lee-riedel.workers.dev';
+let groupId=null;             // aktuelles Gruppen-Schubfach
 let groupName='Lange Leitung';
+let members=[];               // gemeinsame Mitgliederliste (aus KV)
+let localEntries=[];          // Fallback-Cache, falls KV nicht erreichbar
 let required={};              // entryId -> false if excluded
 let pendingDelete=null;
+let syncTimer=null, lastUpdated=0, saving=false;
 
 const $=id=>document.getElementById(id);
 const esc=s=>(s+'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -407,19 +430,95 @@ WD.forEach(([lbl,val])=>{
   $('weekdays').appendChild(l);
 });
 
-loadLocal(); loadFromHash(); applySettings(); renderAll(); connectShared();
+loadLocal(); applySettings(); initGroup();
 
 function loadLocal(){
   try{
     const n=localStorage.getItem('fs2.name'); if(n)$('personName').value=n;
-    const g=localStorage.getItem('fs2.group'); if(g)groupName=g;
-    const le=JSON.parse(localStorage.getItem('fs2.local')||'[]'); if(Array.isArray(le))localEntries=le;
   }catch(e){}
 }
 function persistLocal(){ try{
-  localStorage.setItem('fs2.local',JSON.stringify(localEntries));
-  localStorage.setItem('fs2.group',groupName);
+  if(groupId) localStorage.setItem('fs2.cache.'+groupId,JSON.stringify({groupName,members}));
 }catch(e){} }
+
+/* ================= Gruppen ================= */
+function recentGroups(){ try{return JSON.parse(localStorage.getItem('fs2.recent')||'[]');}catch(e){return [];} }
+function rememberGroup(id,name){
+  let r=recentGroups().filter(g=>g.id!==id);
+  r.unshift({id,name,at:Date.now()});
+  try{localStorage.setItem('fs2.recent',JSON.stringify(r.slice(0,8)));}catch(e){}
+}
+function groupLink(id){ return location.origin+location.pathname+'#g='+id; }
+
+function initGroup(){
+  // Gruppe aus dem Link?
+  const m=location.hash.match(/[#&]g=([A-Za-z0-9_-]{4,64})/);
+  if(m){ enterGroup(m[1]); return; }
+  showGate();
+}
+function showGate(){
+  $('appWrap').style.display='none';
+  $('groupGate').style.display='flex';
+  const r=recentGroups();
+  $('recentGroups').innerHTML = r.length
+    ? '<label>Deine Gruppen</label>'+r.map(g=>`<button class="btn btn-ghost" style="width:100%;justify-content:space-between;margin-bottom:8px" onclick="enterGroup('${g.id}')"><span>${esc(g.name)}</span><span style="color:var(--faint)">öffnen →</span></button>`).join('')
+    : '';
+}
+function createGroup(){
+  const name=$('newGroupName').value.trim(); if(!name){ $('newGroupName').focus(); return; }
+  const id=(name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,24)||'gruppe')+'-'+Math.random().toString(36).slice(2,8);
+  groupName=name;
+  enterGroup(id,name);
+}
+async function enterGroup(id,presetName){
+  groupId=id;
+  if(presetName)groupName=presetName;
+  history.replaceState(null,'',location.pathname+'#g='+id);
+  $('groupGate').style.display='none';
+  $('appWrap').style.display='';
+  // Cache sofort zeigen
+  try{ const c=JSON.parse(localStorage.getItem('fs2.cache.'+id)||'null'); if(c){ groupName=c.groupName||groupName; members=c.members||[]; } }catch(e){}
+  renderAll();
+  await loadGroup();
+  rememberGroup(id,groupName);
+  startSync();
+}
+function switchGroup(){ stopSync(); groupId=null; members=[]; showGate(); }
+
+/* ================= KV-Sync ================= */
+async function loadGroup(){
+  if(!groupId)return;
+  try{
+    const res=await fetch(API+'/group/'+groupId); if(!res.ok)return;
+    const d=await res.json();
+    if(d && typeof d==='object'){
+      if(Array.isArray(d.members)) members=d.members;
+      if(d.meta && d.meta.name) groupName=d.meta.name;
+      lastUpdated=d._updated||0;
+      persistLocal(); renderAll();
+    }
+  }catch(e){/* offline: Cache bleibt */}
+}
+async function saveMembers(){
+  persistLocal();
+  if(!groupId)return false;
+  try{
+    saving=true;
+    const res=await fetch(API+'/group/'+groupId+'/members',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(members)});
+    saving=false;
+    return res.ok;
+  }catch(e){ saving=false; return false; }
+}
+async function saveMeta(){
+  if(!groupId)return;
+  try{ await fetch(API+'/group/'+groupId+'/meta',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:groupName})}); }catch(e){}
+}
+function startSync(){ stopSync(); syncTimer=setInterval(async()=>{ if(saving)return;
+  try{ const res=await fetch(API+'/group/'+groupId); if(!res.ok)return; const d=await res.json();
+    if(d && (d._updated||0)>lastUpdated){ if(Array.isArray(d.members))members=d.members; if(d.meta&&d.meta.name)groupName=d.meta.name; lastUpdated=d._updated||0; persistLocal(); renderAll(); }
+  }catch(e){}
+},5000); }
+function stopSync(){ if(syncTimer){clearInterval(syncTimer);syncTimer=null;} }
 function applySettings(){
   let s={}; try{s=JSON.parse(localStorage.getItem('fs2.settings')||'{}');}catch(e){}
   if(s.from)$('fromDate').value=s.from;
@@ -432,62 +531,10 @@ function saveSettings(){ try{ localStorage.setItem('fs2.settings',JSON.stringify
   md:$('minDur').value,wd:[...document.querySelectorAll('#weekdays input:checked')].map(i=>+i.value)
 }));}catch(e){} }
 
-/* ================= shared connection ================= */
-async function connectShared(){
-  try{
-    const use=window.claude&&window.claude.use; if(!use)return;
-    const tmo=p=>Promise.race([p,new Promise(r=>setTimeout(()=>r(null),10000))]);
-    const [db,user]=await Promise.all([tmo(use.call(window.claude,'db')),tmo(use.call(window.claude,'user'))]);
-    if(!db||!user)return;
-    let uid=null,isOwner=false;
-    try{uid=await user.id();}catch(e){}
-    try{isOwner=!!(await user.isOwner());}catch(e){}
-    if(!uid)return;
-    ctx={mode:'shared',db,user,uid,isOwner,canWrite:true};
-    setMode(true);
-    // group name
-    try{
-      const m=await db.doc('meta/config').get();
-      const d=unwrapDoc(m); if(d&&d.title){groupName=d.title;}
-    }catch(e){}
-    // live member list
-    try{
-      db.collection('cals').onSnapshot(s=>{ingestSnap(s);},err=>{refreshOnce();});
-    }catch(e){ refreshOnce(); }
-    renderAll();
-  }catch(e){/* stay local */}
-}
-async function refreshOnce(){ try{ const s=await ctx.db.collection('cals').get(); ingestSnap(s);}catch(e){} }
-function unwrapDoc(d){ if(!d)return null; try{return typeof d.data==='function'?d.data():(d.data!==undefined?d.data:d);}catch(e){return null;} }
-function unwrapSnap(s){
-  let docs=[];
-  try{
-    if(!s)return[];
-    if(Array.isArray(s))docs=s;
-    else if(Array.isArray(s.docs))docs=s.docs;
-    else if(typeof s.forEach==='function')s.forEach(d=>docs.push(d));
-  }catch(e){}
-  return docs.map(d=>({id:d.id,data:unwrapDoc(d)})).filter(x=>x.id&&x.data);
-}
-function ingestSnap(s){
-  sharedDocs={};
-  unwrapSnap(s).forEach(({id,data})=>{ if(data&&Array.isArray(data.entries))sharedDocs[id]=data; });
-  renderAll();
-}
-function setMode(live){
-  const p=$('modePill'); p.classList.toggle('live',live);
-  $('modeTxt').textContent=live?'Live geteilt':'Nur dieses Gerät';
-}
-
 /* ================= members ================= */
 function allMembers(){
-  const out=[];
-  Object.entries(sharedDocs).forEach(([ownerUid,doc])=>{
-    doc.entries.forEach(e=>out.push({...e,ownerUid,mine:ownerUid===ctx.uid,local:false}));
-  });
-  localEntries.forEach(e=>out.push({...e,ownerUid:null,mine:true,local:true}));
-  out.sort((a,b)=>(a.updatedAt||0)-(b.updatedAt||0));
-  return out;
+  return members.slice().sort((a,b)=>(a.updatedAt||0)-(b.updatedAt||0))
+    .map(m=>({...m,mine:true,local:false}));
 }
 function renderAll(){
   const ms=allMembers();
@@ -495,29 +542,27 @@ function renderAll(){
   $('avatars').innerHTML=ms.map(m=>`<span class="av" style="background:${m.color}" title="${esc(m.name)}">${esc((m.name||'?')[0].toUpperCase())}</span>`).join('');
   // group name
   $('groupName').textContent=groupName;
-  $('renameBtn').style.display=(ctx.mode==='local'||ctx.isOwner)?'inline-block':'none';
+  $('renameBtn').style.display='inline-block';
   $('roundCount').textContent=ms.length?ms.length+(ms.length===1?' Person':' Personen'):'';
   // list
   const list=$('memberList');
   if(!ms.length){ list.innerHTML='<li class="empty-members">Noch niemand da – leg oben den ersten Kalender dazu.</li>'; }
   else list.innerHTML=ms.map(m=>{
     const cals=m.calendars||[], evts=cals.reduce((a,c)=>a+(c.busy?c.busy.length:0),0);
-    const canDel=m.mine||ctx.isOwner;
-    const delBtn=canDel?(pendingDelete===m.id
+    const delBtn=pendingDelete===m.id
       ?`<button class="x confirm" onclick="removeMember('${m.id}')">Wirklich löschen?</button>`
-      :`<button class="x" title="Entfernen" onclick="askDelete('${m.id}')">×</button>`):'';
-    const transfer=(m.local&&!m.demo&&ctx.mode==='shared')?`<button class="btn btn-xs btn-ghost" onclick="transferLocal('${m.id}')">In die Gruppe ↑</button>`:'';
+      :`<button class="x" title="Entfernen" onclick="askDelete('${m.id}')">×</button>`;
     return `<li class="member">
       <span class="av" style="background:${m.color};width:38px;height:38px;font-size:15px">${esc((m.name||'?')[0].toUpperCase())}</span>
       <div class="m-meta">
-        <div class="m-name">${esc(m.name)}${m.mine&&!m.local?'<span class="badge me">du</span>':''}${m.local&&ctx.mode==='shared'?'<span class="badge local">nur lokal</span>':''}${m.demo?'<span class="badge local">Demo</span>':''}</div>
+        <div class="m-name">${esc(m.name)}${m.demo?'<span class="badge local">Demo</span>':''}</div>
         <div class="m-sub">${cals.length} Kalender · ${evts} Belegt-Blöcke · ${relTime(m.updatedAt)}</div>
       </div>
-      <div class="m-actions">${transfer}${delBtn}</div>
+      <div class="m-actions">${delBtn}</div>
     </li>`;}).join('');
   // demo button
   $('demoWrap').style.display=ms.length?'none':'block';
-  $('shareWrap').style.display=ms.some(m=>!m.demo)?'block':'none';
+  $('shareWrap').style.display='block';
   // required pills
   const rs=$('reqSect');
   if(ms.length>1){
@@ -528,26 +573,10 @@ function renderAll(){
 function askDelete(id){ pendingDelete=id; renderAll(); setTimeout(()=>{if(pendingDelete===id){pendingDelete=null;renderAll();}},4000); }
 async function removeMember(id){
   pendingDelete=null;
-  const li=localEntries.findIndex(e=>e.id===id);
-  if(li>=0){ localEntries.splice(li,1); persistLocal(); renderAll(); return; }
-  for(const [ownerUid,doc] of Object.entries(sharedDocs)){
-    const idx=doc.entries.findIndex(e=>e.id===id);
-    if(idx>=0){
-      const entries=doc.entries.filter(e=>e.id!==id);
-      try{
-        if(entries.length) await ctx.db.doc('cals/'+ownerUid).set({entries,updatedAt:Date.now()});
-        else await ctx.db.doc('cals/'+ownerUid).delete();
-        toast('Entfernt');
-      }catch(e){ toast('Keine Berechtigung zum Löschen'); }
-      return;
-    }
-  }
+  members=members.filter(m=>m.id!==id);
   renderAll();
-}
-async function transferLocal(id){
-  const e=localEntries.find(x=>x.id===id); if(!e)return;
-  const ok=await pushEntryShared({...e,demo:undefined});
-  if(ok){ localEntries=localEntries.filter(x=>x.id!==id); persistLocal(); toast('In die Gruppe übertragen ✓'); renderAll(); }
+  const ok=await saveMembers();
+  toast(ok?'Entfernt':'Entfernt (offline – wird synchronisiert)');
 }
 
 /* ================= adding calendars ================= */
@@ -611,31 +640,19 @@ async function handleUrl(){
   }catch(e){ toast('Kalender konnte nicht gelesen werden'); }
 }
 async function addEntry(name,cals){
-  const existing=allMembers().find(m=>m.name.toLowerCase()===name.toLowerCase()&&(m.mine||ctx.mode==='local')&&!m.demo);
-  let entry;
-  if(existing){ entry={...existing,calendars:[...(existing.calendars||[]),...cals],updatedAt:Date.now()};
-    delete entry.ownerUid; delete entry.mine; delete entry.local; }
-  else entry={id:uuid(),name,color:colorFor(name),calendars:cals,updatedAt:Date.now()};
-  if(ctx.mode==='shared'){
-    // remove old version of this entry locally/shared, then push
-    if(existing&&existing.local){ localEntries=localEntries.filter(x=>x.id!==existing.id); persistLocal(); }
-    const ok=await pushEntryShared(entry);
-    if(ok){ toast(cals.length+' Kalender für '+name+' hinzugefügt ✓'); return; }
-    // fall through to local on refusal
+  // Vor dem Schreiben frisch laden, damit wir niemandes Eintrag überschreiben
+  await loadGroup();
+  const existing=members.find(m=>m.name.toLowerCase()===name.toLowerCase()&&!m.demo);
+  if(existing){
+    existing.calendars=[...(existing.calendars||[]),...cals];
+    existing.updatedAt=Date.now();
+  } else {
+    members.push({id:uuid(),name,color:colorFor(name),calendars:cals,updatedAt:Date.now()});
   }
-  localEntries=localEntries.filter(x=>x.id!==entry.id); localEntries.push(entry);
-  persistLocal(); renderAll();
-  toast(cals.length+' Kalender für '+name+' hinzugefügt ✓'+(ctx.mode==='shared'?' (nur lokal)':''));
-}
-async function pushEntryShared(entry){
-  try{
-    const mine=sharedDocs[ctx.uid]||{entries:[]};
-    const entries=mine.entries.filter(e=>e.id!==entry.id&&e.name.toLowerCase()!==entry.name.toLowerCase());
-    entries.push(entry);
-    await ctx.db.doc('cals/'+ctx.uid).set({entries,updatedAt:Date.now()});
-    sharedDocs[ctx.uid]={entries}; renderAll();
-    return true;
-  }catch(e){ toast('Schreiben in die Gruppe nicht möglich – lokal gespeichert'); return false; }
+  lastUpdated=Date.now();
+  renderAll();
+  const ok=await saveMembers();
+  toast(cals.length+' Kalender für '+name+' hinzugefügt ✓'+(ok?'':' (offline – wird synchronisiert)'));
 }
 
 /* ================= ICS parsing (busy blocks only) ================= */
@@ -686,7 +703,8 @@ function startRename(){
     const span=document.createElement('span'); span.id='groupName'; span.textContent=groupName;
     inp.replaceWith(span);
     persistLocal();
-    if(ctx.mode==='shared'&&ctx.isOwner){ try{await ctx.db.doc('meta/config').set({title:groupName});}catch(e){} }
+    rememberGroup(groupId,groupName);
+    await saveMeta();
     renderAll();
   };
   inp.addEventListener('blur',done,{once:true});
@@ -856,61 +874,26 @@ function setGuideTab(k){ gTab=k;
     +(g.note?`<div class="gnote">${g.note}</div>`:'');
 }
 
-/* ================= round share link ================= */
-function packRound(){
-  const ms=allMembers().filter(m=>!m.demo);
-  return JSON.stringify({g:groupName,m:ms.map(m=>({n:m.name,c:(m.calendars||[]).map(c=>({
-    l:c.label,a:c.incAllDay?1:0,
-    b:(c.busy||[]).map(([s,e,ad])=>[Math.round(s/60000),Math.round(e/60000),ad?1:0])
-  }))}))});
-}
+/* ================= Gruppen-Link teilen ================= */
 function shareRound(){
-  const json=packRound(); let enc,tag;
-  if(typeof LZString!=='undefined'){enc=LZString.compressToEncodedURIComponent(json);tag='d';}
-  else{enc=btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');tag='b';}
-  const url=location.origin+location.pathname+location.search+'#'+tag+'='+enc;
-  if(url.length>30000){toast('Runde zu groß für einen Link – teilt die .ics-Dateien direkt');return;}
-  const done=()=>toast('Link kopiert – ab in den Gruppenchat!');
+  const url=groupLink(groupId);
+  const done=()=>toast('Gruppen-Link kopiert – ab in den Gruppenchat!');
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done).catch(()=>fallbackCopy(url,done));
   else fallbackCopy(url,done);
 }
-function loadFromHash(){
-  const h=location.hash.slice(1); if(!h)return;
-  const m=h.match(/^(d|b)=(.+)$/); if(!m)return;
-  let json=null;
-  try{
-    if(m[1]==='d'&&typeof LZString!=='undefined')json=LZString.decompressFromEncodedURIComponent(m[2]);
-    else if(m[1]==='b')json=decodeURIComponent(escape(atob(m[2].replace(/-/g,'+').replace(/_/g,'/'))));
-  }catch(e){}
-  if(!json)return;
-  try{
-    const o=JSON.parse(json);
-    if(o.g)groupName=(o.g+'').slice(0,40);
-    (o.m||[]).forEach(p=>{
-      const name=(p.n||'Unbenannt')+'';
-      const cals=(p.c||[]).map(c=>({label:(c.l||'Kalender')+'',incAllDay:!!c.a,
-        busy:(Array.isArray(c.b)?c.b:[]).map(([s,e,ad])=>[s*60000,e*60000,ad?1:0]).filter(x=>isFinite(x[0])&&isFinite(x[1]))}));
-      localEntries=localEntries.filter(x=>x.name.toLowerCase()!==name.toLowerCase());
-      localEntries.push({id:uuid(),name,color:colorFor(name),calendars:cals,updatedAt:Date.now()});
-    });
-    persistLocal(); renderAll();
-    toast('Runde aus dem Link geladen ✓');
-    history.replaceState(null,'',location.pathname+location.search);
-  }catch(e){}
-}
 
 /* ================= demo ================= */
-function loadDemo(){
+async function loadDemo(){
   const base=new Date(); base.setHours(0,0,0,0);
   const mk=(d,sh,eh)=>{const s=new Date(base.getTime()+d*DAY);s.setHours(sh,0,0,0);const e=new Date(base.getTime()+d*DAY);e.setHours(eh,0,0,0);return [s.getTime(),e.getTime(),0];};
   const demo=(name,busy)=>({id:uuid(),name,color:colorFor(name),demo:true,updatedAt:Date.now(),
     calendars:[{label:'Demo',incAllDay:true,busy}]});
-  localEntries.push(
+  members.push(
     demo('Jamie (Demo)',[mk(1,9,17),mk(2,9,17),mk(3,19,22),mk(5,9,17)]),
     demo('Lena (Demo)',[mk(1,8,14),mk(2,14,22),mk(4,8,16)]),
     demo('Max (Demo)',[mk(2,18,20),mk(3,9,12),mk(5,14,23)])
   );
-  persistLocal(); renderAll();
+  lastUpdated=Date.now(); renderAll(); await saveMembers();
   toast('Demo geladen – unten auf „Slots finden“ klicken');
 }
 </script>
