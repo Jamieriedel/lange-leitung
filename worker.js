@@ -1,58 +1,89 @@
-// Lange Leitung – iCal-Proxy (Cloudflare Worker)
-// Holt eine .ics-Datei serverseitig und gibt sie mit CORS-Header zurück,
-// damit der Browser sie lesen darf. Nur echte Kalender-Hosts erlaubt.
+// Lange Leitung – Worker: iCal-Proxy + Gruppen-Speicher (Cloudflare KV)
+//
+// Zwei Aufgaben:
+//  1) /proxy?url=…  holt eine .ics-Datei serverseitig (umgeht CORS). Nur echte Kalender-Hosts.
+//  2) /group/<id>   liest/schreibt die gemeinsamen Daten einer Gruppe im KV-Speicher "DATA".
+//
+// KV-Binding muss im Worker "DATA" heißen (wird in Cloudflare einmal verknüpft).
 
 const ALLOWED_HOSTS = [
-  'p01-caldav.icloud.com', 'p02-caldav.icloud.com', 'p03-caldav.icloud.com',
-  // iCloud nutzt viele nummerierte Hosts – wir erlauben das Muster unten generisch
   'calendar.google.com', 'www.google.com',
   'outlook.office365.com', 'outlook.live.com',
 ];
-
 function hostAllowed(host) {
   host = host.toLowerCase();
-  if (host.endsWith('.icloud.com')) return true;            // alle iCloud-CalDAV-Hosts
+  if (host.endsWith('.icloud.com')) return true;
   if (host.endsWith('.calendar.google.com')) return true;
-  if (ALLOWED_HOSTS.includes(host)) return true;
   if (host.endsWith('.office365.com')) return true;
-  return false;
+  return ALLOWED_HOSTS.includes(host);
 }
 
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+const json = (obj, status = 200) =>
+  new Response(JSON.stringify(obj), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
 export default {
-  async fetch(request) {
-    const cors = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': '*',
-    };
-    if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
+  async fetch(request, env) {
+    if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
     const u = new URL(request.url);
-    let target = u.searchParams.get('url');
-    if (!target) return new Response('Missing ?url=', { status: 400, headers: cors });
+    const path = u.pathname.replace(/\/+$/, '');
 
-    if (target.startsWith('webcal://')) target = 'https://' + target.slice(9);
+    // ---- 1) iCal-Proxy ----
+    if (path === '' || path === '/proxy') {
+      let target = u.searchParams.get('url');
+      if (!target) return new Response('Missing ?url=', { status: 400, headers: CORS });
+      if (target.startsWith('webcal://')) target = 'https://' + target.slice(9);
+      let t;
+      try { t = new URL(target); } catch (e) { return new Response('Bad url', { status: 400, headers: CORS }); }
+      if (t.protocol !== 'https:' || !hostAllowed(t.hostname))
+        return new Response('Host not allowed', { status: 403, headers: CORS });
+      try {
+        const res = await fetch(t.toString(), {
+          headers: { 'User-Agent': 'LangeLeitung/1.0', 'Accept': 'text/calendar, */*' },
+          redirect: 'follow',
+        });
+        const body = await res.text();
+        return new Response(body, {
+          status: res.status,
+          headers: { ...CORS, 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'public, max-age=900' },
+        });
+      } catch (e) { return new Response('Fetch failed', { status: 502, headers: CORS }); }
+    }
 
-    let targetUrl;
-    try { targetUrl = new URL(target); } catch (e) {
-      return new Response('Bad url', { status: 400, headers: cors });
-    }
-    if (targetUrl.protocol !== 'https:' || !hostAllowed(targetUrl.hostname)) {
-      return new Response('Host not allowed', { status: 403, headers: cors });
+    // ---- 2) Gruppen-Speicher ----
+    // GET  /group/<id>         -> gesamte Gruppendaten
+    // PUT  /group/<id>/<key>   -> speichert Body (JSON) unter diesem Teil (z.B. cals, wannados, polls, expenses, meta)
+    const gm = path.match(/^\/group\/([A-Za-z0-9_-]{1,64})(?:\/([a-z]{1,32}))?$/);
+    if (gm) {
+      if (!env.DATA) return json({ error: 'KV not configured' }, 500);
+      const id = gm[1], key = gm[2];
+      const storeKey = 'g:' + id;
+
+      if (request.method === 'GET') {
+        const raw = await env.DATA.get(storeKey);
+        return json(raw ? JSON.parse(raw) : {});
+      }
+      if (request.method === 'PUT' && key) {
+        let value;
+        try { value = await request.json(); } catch (e) { return json({ error: 'bad json' }, 400); }
+        const raw = await env.DATA.get(storeKey);
+        const data = raw ? JSON.parse(raw) : {};
+        data[key] = value;
+        data._updated = Date.now();
+        // einfacher Größenschutz (KV-Wert max 25 MB; wir deckeln viel früher)
+        const out = JSON.stringify(data);
+        if (out.length > 800000) return json({ error: 'group full' }, 413);
+        await env.DATA.put(storeKey, out);
+        return json({ ok: true, updated: data._updated });
+      }
+      return json({ error: 'method not allowed' }, 405);
     }
 
-    try {
-      const res = await fetch(targetUrl.toString(), {
-        headers: { 'User-Agent': 'LangeLeitung/1.0', 'Accept': 'text/calendar, */*' },
-        redirect: 'follow',
-      });
-      const body = await res.text();
-      return new Response(body, {
-        status: res.status,
-        headers: { ...cors, 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'public, max-age=900' },
-      });
-    } catch (e) {
-      return new Response('Fetch failed', { status: 502, headers: cors });
-    }
+    return new Response('Not found', { status: 404, headers: CORS });
   },
 };
