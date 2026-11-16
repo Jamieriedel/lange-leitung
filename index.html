@@ -212,18 +212,44 @@
   .tour .t-nav{flex-wrap:wrap}
   .step{flex-wrap:wrap}
   @media (max-width:600px){
-    .wrap{padding:26px 14px 70px}
-    .topbar{flex-wrap:wrap;gap:10px}
-    .card{padding:20px 16px 18px}
+    .wrap{padding:22px 14px 64px}
+    .topbar{flex-wrap:wrap;gap:10px;margin-bottom:24px}
+    .hero{margin-bottom:32px}
+    .card{padding:18px 15px 16px;margin-top:16px;border-radius:16px}
+    .cta,.btn-cta{margin-top:16px}
+    /* Schritt-Kopf kompakter */
+    .step{margin-bottom:14px;gap:9px}
+    .step .no{font-size:18px}
+    .step h2{font-size:16px}
+    .step .opt{margin-left:0;flex-basis:100%;padding-left:28px;margin-top:2px}
+    /* Eingaben: normale Höhe, iOS-Zoom verhindern (16px), linksbündig */
+    input[type=text],input[type=url],input[type=date],input[type=time],input[type=number]{
+      font-size:16px;padding:12px 13px;text-align:left}
+    label{margin-bottom:5px}
+    .row{gap:10px}
+    .row>div{min-width:0}
+    /* Zeit + Dauer: zwei Zeilen statt Riesenfelder */
+    #cardTime .row:first-of-type>div{flex:1 1 calc(50% - 5px)}
+    #minDur{max-width:none}
     .addrow>div{flex:1 1 100%}
     .addrow .btn{width:100%}
-    .step .opt{margin-left:0;flex-basis:100%;padding-left:34px}
-    .tour{padding:16px 16px 14px}
-    .tour .btn{padding:8px 11px;font-size:12.5px}
+    /* Wochentage: enges Raster, gut tippbar */
+    .pills{gap:7px}
+    .pills label{flex:1 1 calc(25% - 6px);justify-content:center;padding:9px 4px;font-size:13px}
+    #reqPills label{flex:1 1 100%;justify-content:flex-start}
+    /* Tour & Overlay */
+    .tour{padding:16px 16px 14px;left:14px;right:14px;transform:none;width:auto;max-width:none}
+    @keyframes tourRise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+    .tour .btn{padding:9px 12px;font-size:13px}
+    .tour .t-nav{gap:7px}
     .tour h3{font-size:18px}
-    .sheet{padding:20px 16px 16px}
+    .sheet{padding:20px 16px 16px;max-height:90vh}
+    .seg{gap:6px}
+    .seg button{flex:1 1 calc(50% - 3px);padding:9px 8px}
     .member{flex-wrap:wrap}
     .m-actions{margin-left:auto}
+    /* Hero-Titel nicht zu wuchtig */
+    h1.group{font-size:clamp(30px,8vw,40px)}
   }
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
