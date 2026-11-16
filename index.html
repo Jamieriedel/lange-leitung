@@ -545,9 +545,13 @@ async function handleFiles(){
   if(!cals.length)return;
   await addEntry(name,cals);
 }
+// Dein eigener Cloudflare-Worker-Proxy. Nach dem Deploy hier eintragen,
+// z. B. 'https://lange-leitung-proxy.DEINNAME.workers.dev'. Leer = nur öffentliche Proxys.
+const WORKER_URL='https://lange-leitung-proxy.jamie-lee-riedel.workers.dev';
 async function fetchIcs(url){
-  // 1) direct, 2) public CORS proxies as fallback
+  // 1) eigener Worker (falls gesetzt), 2) direkt, 3) öffentliche Proxys als Netz
   const tries=[
+    ...(WORKER_URL?[u=>WORKER_URL.replace(/\/$/,'')+'/?url='+encodeURIComponent(u)]:[]),
     u=>u,
     u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
     u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
