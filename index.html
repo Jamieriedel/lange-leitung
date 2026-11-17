@@ -342,7 +342,7 @@
         <div class="grow"><input type="text" id="joinCode" placeholder="Zugangscode (falls gesetzt)" autocomplete="off" onkeydown="if(event.key==='Enter')joinGroup()"></div>
         <div><button class="btn btn-accent" onclick="joinGroup()">Beitreten</button></div>
       </div>
-      <div class="gnote" style="margin-top:14px">Am einfachsten: auf den Einladungs-Link tippen, den dir jemand aus deiner Crew geschickt hat – dann bist du direkt drin. Ohne Link brauchst du die Gruppen-ID und ggf. den Code.</div>
+      <div class="gnote" style="margin-top:14px">Am einfachsten: auf den Einladungs-Link tippen, den dir jemand aus deiner Gruppe geschickt hat – dann bist du direkt drin. Ohne Link brauchst du die Gruppen-ID und ggf. den Code.</div>
     </div>
 
     <!-- Neu anlegen -->
@@ -353,7 +353,7 @@
         <div class="grow"><input type="text" id="newGroupCode" placeholder="Zugangscode (optional, empfohlen)" autocomplete="off" onkeydown="if(event.key==='Enter')createGroup()"></div>
         <div><button class="btn btn-accent" onclick="createGroup()">Anlegen</button></div>
       </div>
-      <div class="gnote" style="margin-top:14px">Du bekommst einen teilbaren Link. Den schickst du deiner Crew – wer ihn öffnet, ist dabei. Der Zugangscode schützt die Gruppe vor Fremden.</div>
+      <div class="gnote" style="margin-top:14px">Du bekommst einen teilbaren Link. Den schickst du deiner Gruppe – wer ihn öffnet, ist dabei. Der Zugangscode schützt die Gruppe vor Fremden.</div>
     </div>
   </div>
 </div>
@@ -370,19 +370,19 @@
 
   <div class="hero">
     <div class="greet" id="greet"></div>
-    <h1 class="group"><span id="groupName">Lange Leitung</span><button class="edit-name" id="renameBtn" title="Namen ändern" onclick="startRename()">✎</button></h1>
+    <h1 class="group"><span id="groupName">&nbsp;</span><button class="edit-name" id="renameBtn" title="Namen ändern" onclick="startRename()">✎</button></h1>
     <p class="sub">Wann können wir alle? Kalender rein, gemeinsame Lücke raus.</p>
     <div class="avatars" id="avatars"></div>
   </div>
 
-  <!-- ===== Crew teilen (prominent, ganz oben) ===== -->
+  <!-- ===== Gruppe teilen (prominent, ganz oben) ===== -->
   <div class="sharebar" id="shareBar">
     <div class="sharebar-main">
       <div>
         <div class="sharebar-title">Freunde einladen</div>
-        <div class="sharebar-sub">Link teilen – wer ihn öffnet, ist direkt in deiner Crew.</div>
+        <div class="sharebar-sub">Link teilen – wer ihn öffnet, ist direkt in deiner Gruppe.</div>
       </div>
-      <button class="btn btn-accent" onclick="shareRound()">🔗 Crew-Link teilen</button>
+      <button class="btn btn-accent" onclick="shareRound()">🔗 Gruppen-Link teilen</button>
     </div>
     <details class="sharebar-manual">
       <summary>Manuell beitreten lassen (ID &amp; Code)</summary>
@@ -431,7 +431,7 @@
 
   <!-- 2 · Die Crew -->
   <div class="card">
-    <div class="step"><span class="no">2</span><h2>Deine Crew</h2><span class="opt" id="roundCount"></span></div>
+    <div class="step"><span class="no">2</span><h2>Deine Gruppe</h2><span class="opt" id="roundCount"></span></div>
     <ul class="members" id="memberList"></ul>
     <div id="demoWrap" style="margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="loadDemo()">Beispieldaten ansehen</button></div>
   </div>
@@ -519,7 +519,7 @@
 
   <footer>
     Termindetails bleiben privat – geteilt werden nur Belegt-Zeiten.<br>
-    Jede Gruppe hat ihren eigenen gemeinsamen Speicher – alle mit dem Link sehen live dieselbe Crew, ganz ohne Login.
+    Jede Gruppe hat ihren eigenen gemeinsamen Speicher – alle mit dem Link sehen live dieselbe Gruppe, ganz ohne Login.
   </footer>
 </div>
 
@@ -671,6 +671,7 @@ async function enterGroup(id,presetName,code,isNew,viaJoin){
   if(isNew) await saveMeta();
   rememberGroup(id,groupName,groupCode);
   startSync();
+  maybeStartTour();
 }
 function askCode(id){
   stopSync();
@@ -682,7 +683,7 @@ function askCode(id){
   $('recentGroups').innerHTML=`<label>Zugangscode für „${esc(groupName||'diese Gruppe')}"</label>
     <div class="addrow"><div class="grow"><input type="text" id="codeInput" placeholder="Code eingeben" onkeydown="if(event.key==='Enter')tryCode('${id}')"></div>
     <div><button class="btn btn-accent" onclick="tryCode('${id}')">Öffnen</button></div></div>
-    <div class="gnote" style="margin-top:10px">Diese Gruppe ist mit einem Code geschützt. Frag jemanden aus deiner Crew oder nutze den vollständigen Einladungs-Link.</div>`;
+    <div class="gnote" style="margin-top:10px">Diese Gruppe ist mit einem Code geschützt. Frag jemanden aus deiner Gruppe oder nutze den vollständigen Einladungs-Link.</div>`;
   document.querySelector('#groupGate h3').textContent='Geschützte Gruppe';
 }
 async function tryCode(id){
@@ -693,7 +694,7 @@ async function tryCode(id){
   document.querySelector('#groupGate h3').textContent='Willkommen';
   if($('gateTabs'))$('gateTabs').style.display='flex';
   $('groupGate').style.display='none'; $('appWrap').style.display='';
-  rememberGroup(id,groupName,groupCode); renderAll(); startSync();
+  rememberGroup(id,groupName,groupCode); renderAll(); startSync(); maybeStartTour();
 }
 function switchGroup(){ stopSync(); groupId=null; members=[];wannados=[];polls=[];expenses=[];groupCode='';
   document.querySelector('#groupGate h3').textContent='Willkommen'; showGate(); }
@@ -942,7 +943,7 @@ function startRename(){
 function findSlots(){
   const res=$('results');
   const ms=allMembers().filter(m=>required[m.id]!==false);
-  if(!ms.length){ res.innerHTML='<div class="empty-res">Noch keine Kalender in der Crew.</div>'; return; }
+  if(!ms.length){ res.innerHTML='<div class="empty-res">Noch keine Kalender in der Gruppe.</div>'; return; }
   const nowMs=Date.now();
   let rs=$('fromDate').value?new Date($('fromDate').value+'T00:00:00'):new Date();
   let re=$('toDate').value?new Date($('toDate').value+'T23:59:59'):new Date(nowMs+56*DAY);
@@ -1036,10 +1037,11 @@ function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('sho
 /* ================= tour ================= */
 const TOUR=[
  {t:'Willkommen',h:'So funktioniert die Friends-App',p:'Jede Person legt ihren Kalender dazu. Die App zeigt, wann alle gleichzeitig frei sind. Termindetails bleiben privat.',el:null},
- {t:'Schritt 1 von 4',h:'Kalender-Link holen',p:'Schalte deinen Kalender auf „öffentlich“ und kopiere den Freigabe-Link – am iPhone in vier Schritten. Die Anleitung zeigt es dir genau.',el:'cardAdd',btn:'Anleitung ansehen'},
- {t:'Schritt 2 von 4',h:'Name rein, Link einfügen',p:'Namen eintragen, Link einfügen, „Hinzufügen“ – fertig. Für jemand anderen? Dessen Namen eintragen und dessen Link einfügen.',el:'cardAdd'},
- {t:'Schritt 3 von 4',h:'Nur die Zeit zählt',p:'Kein Datum nötig – gesucht wird ab heute. Stell nur ein, von wann bis wann ihr könnt und wie lang es mindestens sein soll.',el:'cardTime'},
- {t:'Schritt 4 von 4',h:'Finden & teilen',p:'Ein Klick – der beste Slot steht oben, Antippen kopiert ihn. Mit „Crew-Link teilen“ schickst du den Stand an alle – jeder ergänzt sich selbst und teilt weiter.',el:'ctaBtn'}
+ {t:'Schritt 1 von 5',h:'Freunde einladen',p:'Ganz oben: „Gruppen-Link teilen“ drücken und in euren Chat schicken. Wer den Link öffnet, ist direkt in der Gruppe – kein Login.',el:'shareBar'},
+ {t:'Schritt 2 von 5',h:'Kalender dazulegen',p:'Namen eintragen, Kalender-Link einfügen, „Hinzufügen“. Woher du den Link bekommst, zeigt dir die Anleitung Schritt für Schritt.',el:'cardAdd',btn:'Anleitung ansehen'},
+ {t:'Schritt 3 von 5',h:'Nur die Zeit zählt',p:'Kein Datum nötig – gesucht wird ab heute. Stell nur ein, von wann bis wann ihr könnt und wie lang es mindestens sein soll.',el:'cardTime'},
+ {t:'Schritt 4 von 5',h:'Slot finden',p:'Ein Klick – der beste gemeinsame Slot steht oben. Jeden Slot antippen kopiert ihn fertig für den Gruppenchat.',el:'ctaBtn'},
+ {t:'Schritt 5 von 5',h:'Mehr als Termine',p:'Oben die Tabs: Wanna-dos sammeln, über Termine abstimmen und Kosten teilen – alles gemeinsam und live.',el:'mainTabs'}
 ];
 let tourIdx=0;
 function startTour(){tourIdx=0;showTour();}
@@ -1060,7 +1062,8 @@ function showTour(){
 function tourNext(){ if(tourIdx>=TOUR.length-1){endTour();return;} tourIdx++; showTour(); }
 function tourPrev(){ if(tourIdx>0){tourIdx--;showTour();} }
 function endTour(){ $('tour').style.display='none'; document.querySelectorAll('.spot').forEach(e=>e.classList.remove('spot')); try{localStorage.setItem('fs2.tour','1');}catch(e){} }
-try{ if(!localStorage.getItem('fs2.tour')) setTimeout(startTour,700); }catch(e){}
+// Tour erst anbieten, wenn man in einer Gruppe ist (nicht über dem Gruppen-Gate)
+function maybeStartTour(){ try{ if(!localStorage.getItem('fs2.tour')&&groupId) setTimeout(startTour,600); }catch(e){} }
 
 /* ================= export guide ================= */
 const GUIDES={
@@ -1104,9 +1107,9 @@ function setGuideTab(k){ gTab=k;
 /* ================= Gruppen-Link teilen ================= */
 function shareRound(){
   const url=groupLink(groupId,groupCode);
-  const txt='Komm in unsere Crew auf der Friends-App: '+url;
-  const done=()=>toast('Crew-Link kopiert – ab in den Gruppenchat!');
-  if(navigator.share){ navigator.share({title:'Friends-App – '+groupName,text:'Komm in unsere Crew: '+groupName,url}).catch(()=>{}); return; }
+  const txt='Komm in unsere Gruppe auf der Friends-App: '+url;
+  const done=()=>toast('Gruppen-Link kopiert – ab in den Gruppenchat!');
+  if(navigator.share){ navigator.share({title:'Friends-App – '+groupName,text:'Komm in unsere Gruppe: '+groupName,url}).catch(()=>{}); return; }
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done).catch(()=>fallbackCopy(url,done));
   else fallbackCopy(url,done);
 }
