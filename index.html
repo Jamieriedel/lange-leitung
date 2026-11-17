@@ -630,19 +630,18 @@ async function enterGroup(id,presetName,code,isNew,viaJoin){
   $('appWrap').style.display='';
   try{ const c=JSON.parse(localStorage.getItem('fs2.cache.'+id)||'null'); if(c){ groupName=c.groupName||groupName; members=c.members||[]; wannados=c.wannados||[]; polls=c.polls||[]; expenses=c.expenses||[]; if(c.code&&code==null)groupCode=c.code; } }catch(e){}
   renderAll();
-  const ok=await loadGroup(isNew);
-  if(ok==='locked'){ askCode(id); return; }
-  // Beitritt zu einer Gruppe, die es (noch) nicht gibt
-  if(viaJoin && ok===true && !hadCache && !members.length && !groupNameFromServer){
+  const res=await loadGroup();
+  if(res==='locked'){ askCode(id); return; }
+  // Beitritt zu einer Gruppe, die es nicht gibt
+  if(viaJoin && res==='empty' && !hadCache){
     groupId=null; showGate();
-    toast('Gruppe nicht gefunden – prüfe ID und Code');
+    toast('Gruppe nicht gefunden – prüfe die ID');
     return;
   }
   if(isNew) await saveMeta();
   rememberGroup(id,groupName,groupCode);
   startSync();
 }
-let groupNameFromServer=false;
 function askCode(id){
   stopSync();
   $('appWrap').style.display='none';
@@ -659,9 +658,10 @@ function askCode(id){
 async function tryCode(id){
   const code=$('codeInput').value.trim(); if(!code)return;
   groupCode=code;
-  const ok=await loadGroup(false);
-  if(ok==='locked'){ toast('Code stimmt nicht'); return; }
+  const res=await loadGroup();
+  if(res==='locked'){ toast('Code stimmt nicht'); return; }
   document.querySelector('#groupGate h3').textContent='Willkommen';
+  if($('gateTabs'))$('gateTabs').style.display='flex';
   $('groupGate').style.display='none'; $('appWrap').style.display='';
   rememberGroup(id,groupName,groupCode); renderAll(); startSync();
 }
@@ -674,21 +674,23 @@ function applyData(d){
   if(Array.isArray(d.wannados)) wannados=d.wannados;
   if(Array.isArray(d.polls)) polls=d.polls;
   if(Array.isArray(d.expenses)) expenses=d.expenses;
-  if(d.meta && d.meta.name){ groupName=d.meta.name; groupNameFromServer=true; }
+  if(d.meta && d.meta.name){ groupName=d.meta.name; }
   if(d.meta && d.meta.code!=null && !groupCode) groupCode=d.meta.code;
   lastUpdated=d._updated||0;
 }
 function codeHeaders(extra){ return Object.assign({'X-Group-Code':groupCode||''}, extra||{}); }
-async function loadGroup(isNew){
-  if(!groupId)return false;
+// Rückgabe: 'locked' | 'empty' | 'ok' | 'offline'
+async function loadGroup(){
+  if(!groupId)return 'offline';
   try{
     const res=await fetch(API+'/group/'+groupId,{headers:codeHeaders()});
     if(res.status===403) return 'locked';
-    if(!res.ok)return false;
+    if(!res.ok)return 'offline';
     const d=await res.json();
-    if(d && typeof d==='object'){ applyData(d); persistLocal(); renderAll(); return true; }
-  }catch(e){/* offline: Cache bleibt */ return true; }
-  return true;
+    const exists=!!(d && (d.meta || (Array.isArray(d.members)&&d.members.length) || d._updated));
+    if(d && typeof d==='object'){ applyData(d); persistLocal(); renderAll(); }
+    return exists?'ok':'empty';
+  }catch(e){/* offline: Cache bleibt */ return 'offline'; }
 }
 async function saveKey(key,value){
   persistLocal();
