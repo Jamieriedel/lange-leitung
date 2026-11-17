@@ -208,6 +208,11 @@
     background:var(--green-chip);color:var(--green-chip-ink);border-radius:999px;padding:3px 9px}
   .guide-link{margin-top:14px}
   .muted{color:var(--muted);font-size:14px}
+  /* ---------- gate tabs ---------- */
+  .tabs{display:flex;gap:4px;background:var(--line-soft);border-radius:10px;padding:4px}
+  .tab{flex:1;border:none;background:none;padding:9px;border-radius:8px;font-size:14px;font-weight:600;
+    cursor:pointer;color:var(--muted);font-family:var(--sans);transition:all .15s}
+  .tab.active{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
   /* ---------- main tabs ---------- */
   .maintabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;
     padding:5px;margin-top:22px;box-shadow:var(--shadow);overflow-x:auto}
@@ -304,15 +309,33 @@
       <p class="sub2">Wähle eine Gruppe oder leg eine neue an.</p>
     </div>
     <div id="recentGroups"></div>
-    <div style="margin-top:14px">
-      <label>Neue Gruppe anlegen</label>
-      <input type="text" id="newGroupName" placeholder="Gruppenname, z. B. Lange Leitung" autocomplete="off" onkeydown="if(event.key==='Enter')createGroup()">
+
+    <div class="tabs" id="gateTabs" style="display:flex;margin-bottom:16px">
+      <button class="tab active" id="gtabJoin" onclick="gateMode('join')">Beitreten</button>
+      <button class="tab" id="gtabNew" onclick="gateMode('new')">Neue Gruppe</button>
+    </div>
+
+    <!-- Beitreten -->
+    <div id="gatePaneJoin">
+      <label>Gruppen-ID oder Einladungs-Link</label>
+      <input type="text" id="joinId" placeholder="z. B. lange-leitung-ab12cd oder ganzer Link" autocomplete="off" onkeydown="if(event.key==='Enter')joinGroup()">
       <div class="addrow" style="margin-top:8px">
-        <div class="grow"><input type="text" id="newGroupCode" placeholder="Zugangscode (optional)" autocomplete="off" onkeydown="if(event.key==='Enter')createGroup()"></div>
+        <div class="grow"><input type="text" id="joinCode" placeholder="Zugangscode (falls gesetzt)" autocomplete="off" onkeydown="if(event.key==='Enter')joinGroup()"></div>
+        <div><button class="btn btn-accent" onclick="joinGroup()">Beitreten</button></div>
+      </div>
+      <div class="gnote" style="margin-top:14px">Am einfachsten: auf den Einladungs-Link tippen, den dir jemand aus der Runde geschickt hat – dann bist du direkt drin. Ohne Link brauchst du die Gruppen-ID und ggf. den Code.</div>
+    </div>
+
+    <!-- Neu anlegen -->
+    <div id="gatePaneNew" style="display:none">
+      <label>Gruppenname</label>
+      <input type="text" id="newGroupName" placeholder="z. B. Lange Leitung" autocomplete="off" onkeydown="if(event.key==='Enter')createGroup()">
+      <div class="addrow" style="margin-top:8px">
+        <div class="grow"><input type="text" id="newGroupCode" placeholder="Zugangscode (optional, empfohlen)" autocomplete="off" onkeydown="if(event.key==='Enter')createGroup()"></div>
         <div><button class="btn btn-accent" onclick="createGroup()">Anlegen</button></div>
       </div>
+      <div class="gnote" style="margin-top:14px">Du bekommst einen teilbaren Link. Den schickst du deiner Runde – wer ihn öffnet, ist dabei. Der Zugangscode schützt die Gruppe vor Fremden.</div>
     </div>
-    <div class="gnote" style="margin-top:16px">Jede Gruppe hat ihren eigenen gemeinsamen Speicher. Den Link teilst du mit deiner Runde – wer ihn öffnet, ist dabei. Kein Login nötig.</div>
   </div>
 </div>
 
@@ -564,10 +587,30 @@ function initGroup(){
 function showGate(){
   $('appWrap').style.display='none';
   $('groupGate').style.display='flex';
+  if($('gateTabs'))$('gateTabs').style.display='flex';
+  if($('gatePaneJoin')){gateMode('join'); $('gatePaneJoin').style.display='block';}
+  ['joinId','joinCode','newGroupName','newGroupCode'].forEach(i=>{if($(i))$(i).value='';});
   const r=recentGroups();
   $('recentGroups').innerHTML = r.length
     ? '<label>Deine Gruppen</label>'+r.map(g=>`<button class="btn btn-ghost" style="width:100%;justify-content:space-between;margin-bottom:8px" onclick="enterGroup('${g.id}',null,${g.code?`'${esc(g.code)}'`:'null'})"><span>${esc(g.name)}</span><span style="color:var(--faint)">öffnen →</span></button>`).join('')
     : '';
+}
+function gateMode(mode){
+  $('gtabJoin').classList.toggle('active',mode==='join');
+  $('gtabNew').classList.toggle('active',mode==='new');
+  $('gatePaneJoin').style.display=mode==='join'?'block':'none';
+  $('gatePaneNew').style.display=mode==='new'?'block':'none';
+}
+function joinGroup(){
+  let raw=$('joinId').value.trim(); if(!raw){ $('joinId').focus(); return; }
+  let code=$('joinCode').value.trim();
+  // Ganzer Link eingefügt? ID (und ggf. Code) rausziehen.
+  const m=raw.match(/[#&]g=([A-Za-z0-9_-]{4,64})(?:~([^&]+))?/);
+  let id;
+  if(m){ id=m[1]; if(m[2]&&!code)code=decodeURIComponent(m[2]); }
+  else { id=raw.replace(/^#?g=/,'').replace(/[^A-Za-z0-9_-]/g,''); }
+  if(id.length<4){ toast('Das sieht nicht wie eine Gruppen-ID aus'); return; }
+  enterGroup(id,null,code||null,false,true);
 }
 function createGroup(){
   const name=$('newGroupName').value.trim(); if(!name){ $('newGroupName').focus(); return; }
@@ -577,10 +620,11 @@ function createGroup(){
   groupName=name; groupCode=code;
   enterGroup(id,name,code,true);
 }
-async function enterGroup(id,presetName,code,isNew){
+async function enterGroup(id,presetName,code,isNew,viaJoin){
   groupId=id;
   if(presetName)groupName=presetName;
   if(code!=null)groupCode=code;
+  const hadCache=!!localStorage.getItem('fs2.cache.'+id);
   history.replaceState(null,'',location.pathname+'#g='+id);
   $('groupGate').style.display='none';
   $('appWrap').style.display='';
@@ -588,14 +632,24 @@ async function enterGroup(id,presetName,code,isNew){
   renderAll();
   const ok=await loadGroup(isNew);
   if(ok==='locked'){ askCode(id); return; }
+  // Beitritt zu einer Gruppe, die es (noch) nicht gibt
+  if(viaJoin && ok===true && !hadCache && !members.length && !groupNameFromServer){
+    groupId=null; showGate();
+    toast('Gruppe nicht gefunden – prüfe ID und Code');
+    return;
+  }
   if(isNew) await saveMeta();
   rememberGroup(id,groupName,groupCode);
   startSync();
 }
+let groupNameFromServer=false;
 function askCode(id){
   stopSync();
   $('appWrap').style.display='none';
   $('groupGate').style.display='flex';
+  if($('gateTabs'))$('gateTabs').style.display='none';
+  if($('gatePaneJoin'))$('gatePaneJoin').style.display='none';
+  if($('gatePaneNew'))$('gatePaneNew').style.display='none';
   $('recentGroups').innerHTML=`<label>Zugangscode für „${esc(groupName||'diese Gruppe')}"</label>
     <div class="addrow"><div class="grow"><input type="text" id="codeInput" placeholder="Code eingeben" onkeydown="if(event.key==='Enter')tryCode('${id}')"></div>
     <div><button class="btn btn-accent" onclick="tryCode('${id}')">Öffnen</button></div></div>
@@ -620,7 +674,7 @@ function applyData(d){
   if(Array.isArray(d.wannados)) wannados=d.wannados;
   if(Array.isArray(d.polls)) polls=d.polls;
   if(Array.isArray(d.expenses)) expenses=d.expenses;
-  if(d.meta && d.meta.name) groupName=d.meta.name;
+  if(d.meta && d.meta.name){ groupName=d.meta.name; groupNameFromServer=true; }
   if(d.meta && d.meta.code!=null && !groupCode) groupCode=d.meta.code;
   lastUpdated=d._updated||0;
 }
