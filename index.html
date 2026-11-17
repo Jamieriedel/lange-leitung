@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lange Leitung – Gemeinsame freie Zeiten finden</title>
+<title>Friends-App – Gemeinsame freie Zeiten finden</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ical.js/1.5.0/ical.min.js"></script>
@@ -208,6 +208,23 @@
     background:var(--green-chip);color:var(--green-chip-ink);border-radius:999px;padding:3px 9px}
   .guide-link{margin-top:14px}
   .muted{color:var(--muted);font-size:14px}
+  /* ---------- share bar ---------- */
+  .sharebar{background:linear-gradient(135deg,#27493a,#1d3a2c);border-radius:var(--radius);
+    padding:18px 20px;margin-top:22px;box-shadow:var(--shadow-lift)}
+  .sharebar-main{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .sharebar-title{color:#f2efe6;font-family:var(--serif);font-size:19px;font-weight:500}
+  .sharebar-sub{color:#aec5b3;font-size:13px;margin-top:2px}
+  .sharebar .btn-accent{background:rgba(255,255,255,.16);color:#fff;white-space:nowrap}
+  .sharebar .btn-accent:hover{background:rgba(255,255,255,.26)}
+  .sharebar-manual{margin-top:12px;border-top:1px solid rgba(255,255,255,.12);padding-top:10px}
+  .sharebar-manual summary{color:#aec5b3;font-size:12.5px;font-weight:600;cursor:pointer}
+  .sharebar-codes{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+  .sharebar-codes .cc{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.2);border-radius:8px;
+    padding:8px 11px;font-size:13px;color:#e8e3d4}
+  .sharebar-codes .cc b{color:#c9b97f;min-width:38px}
+  .sharebar-codes .cc code{flex:1;color:#fff;background:none;font-size:13px;word-break:break-all}
+  .sharebar-codes .cc button{border:none;background:rgba(255,255,255,.14);color:#fff;border-radius:6px;
+    padding:4px 9px;font-size:12px;cursor:pointer}
   /* ---------- gate tabs ---------- */
   .tabs{display:flex;gap:4px;background:var(--line-soft);border-radius:10px;padding:4px}
   .tab{flex:1;border:none;background:none;padding:9px;border-radius:8px;font-size:14px;font-weight:600;
@@ -272,8 +289,10 @@
     label{margin-bottom:5px}
     .row{gap:10px}
     .row>div{min-width:0}
-    /* Zeit + Dauer: zwei Zeilen statt Riesenfelder */
-    #cardTime .row:first-of-type>div{flex:1 1 calc(50% - 5px)}
+    /* Zeit + Dauer: untereinander, volle Breite, sauber tippbar */
+    #cardTime .row{flex-direction:column;gap:12px}
+    #cardTime .row>div{flex:1 1 100%;width:100%}
+    #cardTime input{width:100%;text-align:left}
     #minDur{max-width:none}
     .addrow>div{flex:1 1 100%}
     .addrow .btn{width:100%}
@@ -304,7 +323,7 @@
 <div class="overlay" id="groupGate" style="display:none">
   <div class="sheet" style="max-width:440px">
     <div style="text-align:center;margin-bottom:6px">
-      <div class="brand" style="margin-bottom:6px">Lange Leitung</div>
+      <div class="brand" style="margin-bottom:6px">Friends-App</div>
       <h3 style="padding-right:0">Willkommen</h3>
       <p class="sub2">Wähle eine Gruppe oder leg eine neue an.</p>
     </div>
@@ -323,7 +342,7 @@
         <div class="grow"><input type="text" id="joinCode" placeholder="Zugangscode (falls gesetzt)" autocomplete="off" onkeydown="if(event.key==='Enter')joinGroup()"></div>
         <div><button class="btn btn-accent" onclick="joinGroup()">Beitreten</button></div>
       </div>
-      <div class="gnote" style="margin-top:14px">Am einfachsten: auf den Einladungs-Link tippen, den dir jemand aus der Runde geschickt hat – dann bist du direkt drin. Ohne Link brauchst du die Gruppen-ID und ggf. den Code.</div>
+      <div class="gnote" style="margin-top:14px">Am einfachsten: auf den Einladungs-Link tippen, den dir jemand aus deiner Crew geschickt hat – dann bist du direkt drin. Ohne Link brauchst du die Gruppen-ID und ggf. den Code.</div>
     </div>
 
     <!-- Neu anlegen -->
@@ -334,7 +353,7 @@
         <div class="grow"><input type="text" id="newGroupCode" placeholder="Zugangscode (optional, empfohlen)" autocomplete="off" onkeydown="if(event.key==='Enter')createGroup()"></div>
         <div><button class="btn btn-accent" onclick="createGroup()">Anlegen</button></div>
       </div>
-      <div class="gnote" style="margin-top:14px">Du bekommst einen teilbaren Link. Den schickst du deiner Runde – wer ihn öffnet, ist dabei. Der Zugangscode schützt die Gruppe vor Fremden.</div>
+      <div class="gnote" style="margin-top:14px">Du bekommst einen teilbaren Link. Den schickst du deiner Crew – wer ihn öffnet, ist dabei. Der Zugangscode schützt die Gruppe vor Fremden.</div>
     </div>
   </div>
 </div>
@@ -342,7 +361,7 @@
 <div class="wrap" id="appWrap">
 
   <div class="topbar">
-    <div class="brand">Lange Leitung</div>
+    <div class="brand">Friends-App</div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-ghost btn-sm" onclick="switchGroup()">Gruppe wechseln</button>
       <button class="btn btn-ghost btn-sm" onclick="startTour()">Anleitung</button>
@@ -354,6 +373,21 @@
     <h1 class="group"><span id="groupName">Lange Leitung</span><button class="edit-name" id="renameBtn" title="Namen ändern" onclick="startRename()">✎</button></h1>
     <p class="sub">Wann können wir alle? Kalender rein, gemeinsame Lücke raus.</p>
     <div class="avatars" id="avatars"></div>
+  </div>
+
+  <!-- ===== Crew teilen (prominent, ganz oben) ===== -->
+  <div class="sharebar" id="shareBar">
+    <div class="sharebar-main">
+      <div>
+        <div class="sharebar-title">Freunde einladen</div>
+        <div class="sharebar-sub">Link teilen – wer ihn öffnet, ist direkt in deiner Crew.</div>
+      </div>
+      <button class="btn btn-accent" onclick="shareRound()">🔗 Crew-Link teilen</button>
+    </div>
+    <details class="sharebar-manual">
+      <summary>Manuell beitreten lassen (ID &amp; Code)</summary>
+      <div class="sharebar-codes" id="shareCodes"></div>
+    </details>
   </div>
 
   <!-- ===== Tab-Navigation ===== -->
@@ -395,15 +429,11 @@
     </details>
   </div>
 
-  <!-- 2 · Die Runde -->
+  <!-- 2 · Die Crew -->
   <div class="card">
-    <div class="step"><span class="no">2</span><h2>Die Runde</h2><span class="opt" id="roundCount"></span></div>
+    <div class="step"><span class="no">2</span><h2>Deine Crew</h2><span class="opt" id="roundCount"></span></div>
     <ul class="members" id="memberList"></ul>
     <div id="demoWrap" style="margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="loadDemo()">Beispieldaten ansehen</button></div>
-    <div id="shareWrap" style="margin-top:16px;display:none">
-      <button class="btn btn-accent btn-sm" onclick="shareRound()">Runde als Link teilen</button>
-      <div style="margin-top:7px;color:var(--faint);font-size:12px;line-height:1.5">Teile diesen Link mit deiner Runde. Wer ihn öffnet, landet direkt in dieser Gruppe und sieht live alle Kalender – kein Login nötig.</div>
-    </div>
   </div>
 
   <!-- 3 · Zeit -->
@@ -489,7 +519,7 @@
 
   <footer>
     Termindetails bleiben privat – geteilt werden nur Belegt-Zeiten.<br>
-    Jede Gruppe hat ihren eigenen gemeinsamen Speicher – alle mit dem Link sehen live dieselbe Runde, ganz ohne Login.
+    Jede Gruppe hat ihren eigenen gemeinsamen Speicher – alle mit dem Link sehen live dieselbe Crew, ganz ohne Login.
   </footer>
 </div>
 
@@ -652,7 +682,7 @@ function askCode(id){
   $('recentGroups').innerHTML=`<label>Zugangscode für „${esc(groupName||'diese Gruppe')}"</label>
     <div class="addrow"><div class="grow"><input type="text" id="codeInput" placeholder="Code eingeben" onkeydown="if(event.key==='Enter')tryCode('${id}')"></div>
     <div><button class="btn btn-accent" onclick="tryCode('${id}')">Öffnen</button></div></div>
-    <div class="gnote" style="margin-top:10px">Diese Gruppe ist mit einem Code geschützt. Frag jemanden aus der Runde oder nutze den vollständigen Einladungs-Link.</div>`;
+    <div class="gnote" style="margin-top:10px">Diese Gruppe ist mit einem Code geschützt. Frag jemanden aus deiner Crew oder nutze den vollständigen Einladungs-Link.</div>`;
   document.querySelector('#groupGate h3').textContent='Geschützte Gruppe';
 }
 async function tryCode(id){
@@ -756,7 +786,8 @@ function renderAll(){
     </li>`;}).join('');
   // demo button
   $('demoWrap').style.display=ms.length?'none':'block';
-  $('shareWrap').style.display='block';
+  // share bar codes
+  renderShareCodes();
   // required pills
   const rs=$('reqSect');
   if(ms.length>1){
@@ -911,7 +942,7 @@ function startRename(){
 function findSlots(){
   const res=$('results');
   const ms=allMembers().filter(m=>required[m.id]!==false);
-  if(!ms.length){ res.innerHTML='<div class="empty-res">Noch keine Kalender in der Runde.</div>'; return; }
+  if(!ms.length){ res.innerHTML='<div class="empty-res">Noch keine Kalender in der Crew.</div>'; return; }
   const nowMs=Date.now();
   let rs=$('fromDate').value?new Date($('fromDate').value+'T00:00:00'):new Date();
   let re=$('toDate').value?new Date($('toDate').value+'T23:59:59'):new Date(nowMs+56*DAY);
@@ -1004,11 +1035,11 @@ function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('sho
 
 /* ================= tour ================= */
 const TOUR=[
- {t:'Willkommen',h:'So funktioniert Lange Leitung',p:'Jede Person legt ihren Kalender als .ics-Datei dazu. Die App zeigt, wann alle gleichzeitig frei sind. Termindetails bleiben privat.',el:null},
+ {t:'Willkommen',h:'So funktioniert die Friends-App',p:'Jede Person legt ihren Kalender dazu. Die App zeigt, wann alle gleichzeitig frei sind. Termindetails bleiben privat.',el:null},
  {t:'Schritt 1 von 4',h:'Kalender-Link holen',p:'Schalte deinen Kalender auf „öffentlich“ und kopiere den Freigabe-Link – am iPhone in vier Schritten. Die Anleitung zeigt es dir genau.',el:'cardAdd',btn:'Anleitung ansehen'},
  {t:'Schritt 2 von 4',h:'Name rein, Link einfügen',p:'Namen eintragen, Link einfügen, „Hinzufügen“ – fertig. Für jemand anderen? Dessen Namen eintragen und dessen Link einfügen.',el:'cardAdd'},
  {t:'Schritt 3 von 4',h:'Nur die Zeit zählt',p:'Kein Datum nötig – gesucht wird ab heute. Stell nur ein, von wann bis wann ihr könnt und wie lang es mindestens sein soll.',el:'cardTime'},
- {t:'Schritt 4 von 4',h:'Finden & teilen',p:'Ein Klick – der beste Slot steht oben, Antippen kopiert ihn. Mit „Runde als Link teilen“ schickst du den Stand an alle – jeder ergänzt sich selbst und teilt weiter.',el:'ctaBtn'}
+ {t:'Schritt 4 von 4',h:'Finden & teilen',p:'Ein Klick – der beste Slot steht oben, Antippen kopiert ihn. Mit „Crew-Link teilen“ schickst du den Stand an alle – jeder ergänzt sich selbst und teilt weiter.',el:'ctaBtn'}
 ];
 let tourIdx=0;
 function startTour(){tourIdx=0;showTour();}
@@ -1073,9 +1104,23 @@ function setGuideTab(k){ gTab=k;
 /* ================= Gruppen-Link teilen ================= */
 function shareRound(){
   const url=groupLink(groupId,groupCode);
-  const done=()=>toast('Gruppen-Link kopiert – ab in den Gruppenchat!');
+  const txt='Komm in unsere Crew auf der Friends-App: '+url;
+  const done=()=>toast('Crew-Link kopiert – ab in den Gruppenchat!');
+  if(navigator.share){ navigator.share({title:'Friends-App – '+groupName,text:'Komm in unsere Crew: '+groupName,url}).catch(()=>{}); return; }
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done).catch(()=>fallbackCopy(url,done));
   else fallbackCopy(url,done);
+}
+function copyText(t,msg){
+  const done=()=>toast(msg||'Kopiert');
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done).catch(()=>fallbackCopy(t,done));
+  else fallbackCopy(t,done);
+}
+function renderShareCodes(){
+  const el=$('shareCodes'); if(!el||!groupId)return;
+  el.innerHTML=
+    `<div class="cc"><b>ID</b><code>${esc(groupId)}</code><button onclick="copyText('${esc(groupId)}','ID kopiert')">kopieren</button></div>`+
+    (groupCode?`<div class="cc"><b>Code</b><code>${esc(groupCode)}</code><button onclick="copyText('${esc(groupCode)}','Code kopiert')">kopieren</button></div>`:'')+
+    `<div class="cc"><b>Link</b><code>${esc(groupLink(groupId,groupCode))}</code><button onclick="copyText('${esc(groupLink(groupId,groupCode))}','Link kopiert')">kopieren</button></div>`;
 }
 
 /* ================= Tab-Umschaltung ================= */
