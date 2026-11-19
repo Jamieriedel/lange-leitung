@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#27493a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Friends">
 <title>Friends-App – Gemeinsame freie Zeiten finden</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&display=swap" rel="stylesheet">
@@ -251,6 +258,14 @@
   .wplan{border:none;background:var(--accent-soft);color:var(--accent-ink);border-radius:999px;padding:6px 12px;
     font-size:12.5px;font-weight:600;cursor:pointer}
   /* ---------- polls ---------- */
+  .pushrow{margin-top:12px;border-top:1px solid rgba(255,255,255,.12);padding-top:10px;color:#cfe0d3;font-size:13px;line-height:1.5}
+  .pushrow button{border:none;background:rgba(255,255,255,.16);color:#fff;border-radius:999px;padding:6px 12px;font:inherit;font-weight:600;cursor:pointer;margin-right:4px}
+  .ev{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line-soft)}
+  .ev:first-of-type{border-top:none}
+  .ev .when{font-size:13px;color:var(--muted)}
+  .ev .t{font-family:var(--serif);font-size:17px;font-weight:500}
+  .ev .grow{flex:1;min-width:0}
+  .ev .cal{border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--accent-ink);border-radius:999px;padding:7px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
   .poll{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;background:#fff}
   .poll h4{margin:0 0 4px;font-size:16px;font-family:var(--serif);font-weight:500}
   .poll-opt{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line-soft)}
@@ -397,6 +412,7 @@
       <summary>Manuell beitreten lassen (ID &amp; Code)</summary>
       <div class="sharebar-codes" id="shareCodes"></div>
     </details>
+    <div class="pushrow" id="pushRow"></div>
   </div>
 
   <!-- ===== Tab-Navigation ===== -->
@@ -409,6 +425,11 @@
 
   <!-- ===== TAB: Termin finden ===== -->
   <div class="tabpane" id="pane-plan">
+
+  <div class="card" id="eventsCard" style="display:none">
+    <div class="step"><span class="no">★</span><h2>Geplante Treffen</h2></div>
+    <div id="eventList"></div>
+  </div>
 
   <!-- 1 · Kalender hinzufügen -->
   <div class="card" id="cardAdd">
@@ -560,6 +581,25 @@
   </div>
 </div>
 
+<div class="overlay" id="slotSheet" style="display:none" onclick="if(event.target===this)closeSlot()">
+  <div class="sheet" style="max-width:440px">
+    <h3 style="padding-right:0">Treffen festlegen</h3>
+    <p class="sub2" id="slotWhen" style="margin-bottom:14px"></p>
+    <label>Was macht ihr?</label>
+    <input type="text" id="slotTitle" placeholder="z. B. Bowling, Essen, Spieleabend" onkeydown="if(event.key==='Enter')fixSlot()">
+    <div class="row" style="margin-top:12px">
+      <div><label>Von</label><input type="time" id="slotFrom"></div>
+      <div><label>Bis</label><input type="time" id="slotTo"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px">
+      <button class="btn btn-primary" onclick="fixSlot()">✅ Für die Gruppe festlegen</button>
+      <button class="btn btn-ghost" onclick="slotToCal()">📅 Nur in meinen Kalender</button>
+      <button class="btn btn-ghost" onclick="copySlot(curSlot[0],curSlot[1]);closeSlot()">Text kopieren</button>
+      <button class="btn btn-ghost" style="background:none;color:var(--muted)" onclick="closeSlot()">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -573,6 +613,8 @@ let members=[];               // gemeinsame Mitgliederliste (aus KV)
 let wannados=[];              // Ideen-Liste
 let polls=[];                 // Umfragen
 let expenses=[];              // Ausgaben
+let events=[];                // festgelegte Treffen
+let plannedTitle='';          // Vorbelegung aus Wanna-do
 let localEntries=[];          // Fallback-Cache, falls KV nicht erreichbar
 let required={};              // entryId -> false if excluded
 let pendingDelete=null;
@@ -604,7 +646,7 @@ function loadLocal(){
   }catch(e){ myId=uuid(); }
 }
 function persistLocal(){ try{
-  if(groupId) localStorage.setItem('fs2.cache.'+groupId,JSON.stringify({groupName,members,wannados,polls,expenses,code:groupCode}));
+  if(groupId) localStorage.setItem('fs2.cache.'+groupId,JSON.stringify({groupName,members,wannados,polls,expenses,events,code:groupCode}));
 }catch(e){} }
 
 /* ================= Gruppen ================= */
@@ -667,9 +709,9 @@ async function enterGroup(id,presetName,code,isNew,viaJoin){
   history.replaceState(null,'',location.pathname+'#g='+id);
   $('groupGate').style.display='none';
   $('appWrap').style.display='';
-  try{ const c=JSON.parse(localStorage.getItem('fs2.cache.'+id)||'null'); if(c){ groupName=c.groupName||groupName; members=c.members||[]; wannados=c.wannados||[]; polls=c.polls||[]; expenses=c.expenses||[]; if(c.code&&code==null)groupCode=c.code; } }catch(e){}
+  try{ const c=JSON.parse(localStorage.getItem('fs2.cache.'+id)||'null'); if(c){ groupName=c.groupName||groupName; members=c.members||[]; wannados=c.wannados||[]; polls=c.polls||[]; expenses=c.expenses||[]; events=c.events||[]; if(c.code&&code==null)groupCode=c.code; } }catch(e){}
   renderAll();
-  const cached={members:members.slice(),wannados:wannados.slice(),polls:polls.slice(),expenses:expenses.slice()};
+  const cached={members:members.slice(),wannados:wannados.slice(),polls:polls.slice(),expenses:expenses.slice(),events:events.slice()};
   const res=await loadGroup();
   if(res==='locked'){ askCode(id); return; }
   if(res==='ok'||res==='empty') await reconcile(cached);
@@ -681,6 +723,7 @@ async function enterGroup(id,presetName,code,isNew,viaJoin){
   }
   if(isNew) await saveMeta();
   rememberGroup(id,groupName,groupCode);
+  history.replaceState(null,'',location.pathname+'#g='+id+(groupCode?'~'+encodeURIComponent(groupCode):''));
   startSync();
   maybeStartTour();
 }
@@ -707,7 +750,7 @@ async function tryCode(id){
   $('groupGate').style.display='none'; $('appWrap').style.display='';
   rememberGroup(id,groupName,groupCode); renderAll(); startSync(); maybeStartTour();
 }
-function switchGroup(){ stopSync(); groupId=null; members=[];wannados=[];polls=[];expenses=[];groupCode='';
+function switchGroup(){ stopSync(); groupId=null; members=[];wannados=[];polls=[];expenses=[];events=[];groupCode='';groupName='';
   document.querySelector('#groupGate h3').textContent='Willkommen'; showGate(); }
 
 /* ================= KV-Sync ================= */
@@ -716,21 +759,23 @@ function applyData(d){
   if(Array.isArray(d.wannados)) wannados=d.wannados;
   if(Array.isArray(d.polls)) polls=d.polls;
   if(Array.isArray(d.expenses)) expenses=d.expenses;
+  if(Array.isArray(d.events)) events=d.events;
   if(d.meta && d.meta.name){ groupName=d.meta.name; }
   if(d.meta && d.meta.code!=null && !groupCode) groupCode=d.meta.code;
   lastUpdated=d._updated||0;
 }
 function codeHeaders(extra){ return Object.assign({'X-Group-Code':groupCode||''}, extra||{}); }
+function myName(){ try{return localStorage.getItem('fs2.name')||'';}catch(e){return '';} }
 // Lokal liegende Einträge (z.B. aus Zeiten ohne Server-Verbindung) mit dem Server zusammenführen
 let serverHadMeta=false;
 async function reconcile(cached){
-  const lists={members:()=>members,wannados:()=>wannados,polls:()=>polls,expenses:()=>expenses};
-  const setters={members:v=>members=v,wannados:v=>wannados=v,polls:v=>polls=v,expenses:v=>expenses=v};
+  const lists={members:()=>members,wannados:()=>wannados,polls:()=>polls,expenses:()=>expenses,events:()=>events};
+  const setters={members:v=>members=v,wannados:v=>wannados=v,polls:v=>polls=v,expenses:v=>expenses=v,events:v=>events=v};
   for(const key of Object.keys(lists)){
     const server=lists[key](), local=cached[key]||[];
     const ids=new Set(server.map(x=>x.id));
     const missing=local.filter(x=>x&&x.id&&!ids.has(x.id)&&!x.demo);
-    if(missing.length){ setters[key](server.concat(missing)); await saveKey(key,lists[key]()); }
+    if(missing.length){ setters[key](server.concat(missing)); await saveKey(key,lists[key](),true); }
   }
   if(!serverHadMeta && groupName) await saveMeta();
   persistLocal(); renderAll();
@@ -749,12 +794,13 @@ async function loadGroup(){
     return exists?'ok':'empty';
   }catch(e){/* offline: Cache bleibt */ return 'offline'; }
 }
-async function saveKey(key,value){
+async function saveKey(key,value,silent){
   persistLocal();
   if(!groupId)return false;
   try{
     saving=true;
-    const res=await fetch(API+'/group/'+groupId+'/'+key,{method:'PUT',headers:codeHeaders({'Content-Type':'application/json'}),body:JSON.stringify(value)});
+    const h={'Content-Type':'application/json','X-Member-Id':myId||'','X-Member-Name':encodeURIComponent(myName())}; if(silent)h['X-Silent']='1';
+    const res=await fetch(API+'/group/'+groupId+'/'+key,{method:'PUT',headers:codeHeaders(h),body:JSON.stringify(value)});
     saving=false; lastUpdated=Date.now();
     return res.ok;
   }catch(e){ saving=false; return false; }
@@ -788,6 +834,7 @@ function allMembers(){
     .map(m=>({...m,mine:true,local:false}));
 }
 function renderAll(){
+  renderEvents(); renderPush();
   const ms=allMembers();
   // avatars
   $('avatars').innerHTML=ms.map(m=>`<span class="av" style="background:${m.color}" title="${esc(m.name)}">${esc((m.name||'?')[0].toUpperCase())}</span>`).join('');
@@ -1012,12 +1059,12 @@ function findSlots(){
     let html=`<div class="top-pick"><div class="tag">Beste Empfehlung</div>
       <div class="when">${fmtDay(new Date(best[0]))} · ${fmtT(best[0])}–${fmtT(best[1])} Uhr</div>
       <div class="dur">${fmtDur(Math.round((best[1]-best[0])/60000))} am Stück – für alle ${ms.length===1?'':ms.length+' '}frei</div>
-      <button class="btn btn-sm" onclick="copySlot(${best[0]},${best[1]})">Slot kopieren</button></div>`;
-    html+=`<div class="sumline"><span class="big">${total}</span><span>gemeinsame Slots · ${ms.length} ${ms.length===1?'Person':'Personen'} · ${days.length} Tage mit Optionen · Klick auf einen Slot kopiert ihn</span></div>`;
+      <button class="btn btn-sm" onclick="openSlot(${best[0]},${best[1]})">Als Treffen festlegen</button></div>`;
+    html+=`<div class="sumline"><span class="big">${total}</span><span>gemeinsame Slots · ${ms.length} ${ms.length===1?'Person':'Personen'} · ${days.length} Tage mit Optionen · Tipp auf einen Slot, um ihn festzulegen</span></div>`;
     const block=day=>{
       let h=`<div class="day"><div class="day-head"><span>${fmtDayLong(day.date)}</span><span class="cnt">${day.free.length} Slot${day.free.length>1?'s':''}</span></div><div class="slots">`;
       day.free.forEach(([s,e])=>{
-        h+=`<span class="slot" onclick="copySlot(${s},${e})">${fmtT(s)}–${fmtT(e)}<span class="dur">${fmtDur(Math.round((e-s)/60000))}</span></span>`;
+        h+=`<span class="slot" onclick="openSlot(${s},${e})">${fmtT(s)}–${fmtT(e)}<span class="dur">${fmtDur(Math.round((e-s)/60000))}</span></span>`;
       });
       return h+'</div></div>';
     };
@@ -1185,6 +1232,7 @@ async function removeWanna(id){
 }
 function planWanna(id){
   const w=wannados.find(x=>x.id===id); if(!w)return;
+  plannedTitle=w.text;
   switchMain('plan');
   window.scrollTo({top:0,behavior:'smooth'});
   toast('Findet einen Termin für: '+w.text);
@@ -1248,6 +1296,96 @@ function renderPolls(){
         </div>`;}).join('')}
       ${best.length?`<div class="poll-best">Vorne: ${best.map(o=>esc(o.text)).join(', ')}</div>`:''}
     </div>`;}).join('');
+}
+
+/* ================= Treffen festlegen + Kalender ================= */
+let curSlot=null;
+const hm=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+function openSlot(s,e){
+  curSlot=[s,e];
+  // Lange Lücken auf 2 Std. vorbelegen – anpassbar
+  const end=Math.min(e,s+2*3600000);
+  $('slotWhen').textContent=fmtDayLong(new Date(s))+' · frei '+fmtT(s)+'–'+fmtT(e)+' Uhr';
+  $('slotTitle').value=plannedTitle||''; $('slotFrom').value=hm(s); $('slotTo').value=hm(end);
+  $('slotSheet').style.display='flex';
+  setTimeout(()=>$('slotTitle').focus(),50);
+}
+function closeSlot(){ $('slotSheet').style.display='none'; }
+function slotTimes(){
+  const base=new Date(curSlot[0]); const [fh,fm]=($('slotFrom').value||'').split(':').map(Number); const [th,tm]=($('slotTo').value||'').split(':').map(Number);
+  const a=new Date(base); a.setHours(fh||0,fm||0,0,0); const b=new Date(base); b.setHours(th||0,tm||0,0,0);
+  if(b<=a) b.setDate(b.getDate()+1); // über Mitternacht
+  return [a.getTime(),b.getTime()];
+}
+function icsUrl(ev){ return API+'/ics?t='+encodeURIComponent(ev.title)+'&s='+ev.start+'&e='+ev.end+'&id='+encodeURIComponent(ev.id); }
+function openIcs(ev){ const u=icsUrl(ev); const w=window.open(u,'_blank'); if(!w) location.href=u; }
+async function fixSlot(){
+  if(!curSlot)return;
+  const title=$('slotTitle').value.trim(); if(!title){ $('slotTitle').focus(); toast('Kurz eintragen, was ihr macht'); return; }
+  const [s,e]=slotTimes();
+  await loadGroup(false);
+  events.push({id:uuid(),title,start:s,end:e,by:myName(),at:Date.now()});
+  plannedTitle=''; closeSlot(); renderEvents(); await saveKey('events',events);
+  toast('Treffen festgelegt – alle sehen es jetzt');
+  $('eventsCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function slotToCal(){
+  if(!curSlot)return;
+  const [s,e]=slotTimes();
+  openIcs({id:uuid(),title:$('slotTitle').value.trim()||'Treffen',start:s,end:e}); closeSlot();
+}
+function calEvent(id){ const ev=events.find(x=>x.id===id); if(ev) openIcs(ev); }
+let pendingEv=null;
+async function removeEvent(id){
+  if(pendingEv!==id){ pendingEv=id; renderEvents(); setTimeout(()=>{if(pendingEv===id){pendingEv=null;renderEvents();}},4000); return; }
+  pendingEv=null; await loadGroup(false);
+  events=events.filter(x=>x.id!==id); renderEvents(); await saveKey('events',events);
+}
+function renderEvents(){
+  const card=$('eventsCard'), el=$('eventList'); if(!card||!el)return;
+  const now=Date.now();
+  const up=events.filter(x=>x.end>now).sort((a,b)=>a.start-b.start);
+  card.style.display=up.length?'':'none';
+  el.innerHTML=up.map(ev=>`<div class="ev">
+    <div class="grow"><div class="t">${esc(ev.title)}</div><div class="when">${fmtDayLong(new Date(ev.start))} · ${fmtT(ev.start)}–${fmtT(ev.end)} Uhr${ev.by?' · von '+esc(ev.by):''}</div></div>
+    <button class="cal" onclick="calEvent('${ev.id}')">📅 Eintragen</button>
+    ${pendingEv===ev.id?`<button class="x confirm" onclick="removeEvent('${ev.id}')">Löschen?</button>`:`<button class="x" onclick="removeEvent('${ev.id}')">×</button>`}
+  </div>`).join('');
+}
+
+/* ================= App-Installation + Push ================= */
+const isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const isStandalone=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+const pushSupported=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+const pushOn=()=>{ try{return !!groupId&&localStorage.getItem('fs2.push.'+groupId)==='1';}catch(e){return false;} };
+function renderPush(){
+  const el=$('pushRow'); if(!el)return;
+  if(isIOS&&!isStandalone){ el.innerHTML='📲 <b>Als App aufs iPhone:</b> in Safari unten auf Teilen ⬆︎ → „Zum Home-Bildschirm". Danach gehen auch Mitteilungen.'; return; }
+  if(!pushSupported()){ el.innerHTML='🔕 Mitteilungen gehen in diesem Browser leider nicht.'; return; }
+  if(Notification.permission==='denied'){ el.innerHTML='🔕 Mitteilungen sind blockiert – in den Geräte-Einstellungen für diese App erlauben.'; return; }
+  el.innerHTML=pushOn()
+    ? '🔔 Mitteilungen sind an. <button onclick="disablePush()">Ausschalten</button>'
+    : '<button onclick="enablePush()">🔔 Mitteilungen einschalten</button> bei neuen Treffen, Umfragen, Wanna-dos &amp; Kosten';
+}
+function b64uBytes(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4)s+='='; return Uint8Array.from(atob(s),c=>c.charCodeAt(0)); }
+async function enablePush(){
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){ renderPush(); toast('Mitteilungen nicht erlaubt'); return; }
+    const reg=await navigator.serviceWorker.ready;
+    const key=(await (await fetch(API+'/push/key')).text()).trim();
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64uBytes(key)});
+    const r=await fetch(API+'/push/'+groupId,{method:'PUT',headers:codeHeaders({'Content-Type':'application/json'}),body:JSON.stringify({member:myId,sub:sub.toJSON()})});
+    if(!r.ok) throw new Error(r.status);
+    localStorage.setItem('fs2.push.'+groupId,'1'); renderPush(); toast('Mitteilungen sind an 🔔');
+  }catch(e){ toast('Mitteilungen ließen sich nicht einschalten'); }
+}
+async function disablePush(){
+  try{ await fetch(API+'/push/'+groupId+'/'+encodeURIComponent(myId),{method:'DELETE',headers:codeHeaders()}); }catch(e){}
+  try{ localStorage.removeItem('fs2.push.'+groupId); }catch(e){}
+  renderPush(); toast('Mitteilungen aus');
 }
 
 /* ================= Kosten-Splitter ================= */
