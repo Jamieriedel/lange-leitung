@@ -40,14 +40,19 @@ export default {
       if (target.startsWith('webcal://')) target = 'https://' + target.slice(9);
       let t;
       try { t = new URL(target); } catch (e) { return new Response('Bad url', { status: 400, headers: CORS }); }
-      if (t.protocol !== 'https:' || !hostAllowed(t.hostname))
-        return new Response('Host not allowed', { status: 403, headers: CORS });
+      // Jeder HTTPS-Kalender erlaubt (iCloud, Google, Dienstplan-Apps wie Swisio …),
+      // aber durchgereicht wird NUR echter iCalendar-Inhalt – kein Allzweck-Proxy.
+      if (t.protocol !== 'https:')
+        return new Response('Only https', { status: 403, headers: CORS });
       try {
         const res = await fetch(t.toString(), {
-          headers: { 'User-Agent': 'LangeLeitung/1.0', 'Accept': 'text/calendar, */*' },
+          headers: { 'User-Agent': 'FriendsApp/1.0', 'Accept': 'text/calendar, */*' },
           redirect: 'follow',
         });
         const body = await res.text();
+        if (body.length > 5_000_000) return new Response('Too large', { status: 413, headers: CORS });
+        if (!/BEGIN:VCALENDAR/i.test(body.slice(0, 2000)))
+          return new Response('Not a calendar', { status: 415, headers: CORS });
         return new Response(body, {
           status: res.status,
           headers: { ...CORS, 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'public, max-age=900' },
