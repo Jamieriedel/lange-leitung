@@ -46,12 +46,24 @@ export default {
         return new Response('Only https', { status: 403, headers: CORS });
       try {
         const res = await fetch(t.toString(), {
-          headers: { 'User-Agent': 'FriendsApp/1.0', 'Accept': 'text/calendar, */*' },
+          headers: {
+            // Manche Dienstplan-Server (z.B. Swisio) liefern nur „echten" Clients aus
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+            'Accept': 'text/calendar, text/plain, */*',
+            'Accept-Language': 'de-DE,de;q=0.9',
+          },
           redirect: 'follow',
         });
-        const body = await res.text();
+        const body = (await res.text()).replace(/^﻿/, '');
+        if (u.searchParams.get('debug') === '1') {
+          return new Response(JSON.stringify({
+            status: res.status, contentType: res.headers.get('content-type'), length: body.length,
+            isCalendar: /BEGIN:VCALENDAR/i.test(body.slice(0, 10000)),
+            head: body.slice(0, 160).replace(/[^\x20-\x7E\n]/g, '?'),
+          }, null, 2), { headers: { ...CORS, 'Content-Type': 'application/json' } });
+        }
         if (body.length > 5_000_000) return new Response('Too large', { status: 413, headers: CORS });
-        if (!/BEGIN:VCALENDAR/i.test(body.slice(0, 2000)))
+        if (!/BEGIN:VCALENDAR/i.test(body.slice(0, 10000)))
           return new Response('Not a calendar', { status: 415, headers: CORS });
         return new Response(body, {
           status: res.status,
