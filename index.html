@@ -669,8 +669,10 @@ async function enterGroup(id,presetName,code,isNew,viaJoin){
   $('appWrap').style.display='';
   try{ const c=JSON.parse(localStorage.getItem('fs2.cache.'+id)||'null'); if(c){ groupName=c.groupName||groupName; members=c.members||[]; wannados=c.wannados||[]; polls=c.polls||[]; expenses=c.expenses||[]; if(c.code&&code==null)groupCode=c.code; } }catch(e){}
   renderAll();
+  const cached={members:members.slice(),wannados:wannados.slice(),polls:polls.slice(),expenses:expenses.slice()};
   const res=await loadGroup();
   if(res==='locked'){ askCode(id); return; }
+  if(res==='ok'||res==='empty') await reconcile(cached);
   // Beitritt zu einer Gruppe, die es nicht gibt
   if(viaJoin && res==='empty' && !hadCache){
     groupId=null; showGate();
@@ -719,6 +721,20 @@ function applyData(d){
   lastUpdated=d._updated||0;
 }
 function codeHeaders(extra){ return Object.assign({'X-Group-Code':groupCode||''}, extra||{}); }
+// Lokal liegende Einträge (z.B. aus Zeiten ohne Server-Verbindung) mit dem Server zusammenführen
+let serverHadMeta=false;
+async function reconcile(cached){
+  const lists={members:()=>members,wannados:()=>wannados,polls:()=>polls,expenses:()=>expenses};
+  const setters={members:v=>members=v,wannados:v=>wannados=v,polls:v=>polls=v,expenses:v=>expenses=v};
+  for(const key of Object.keys(lists)){
+    const server=lists[key](), local=cached[key]||[];
+    const ids=new Set(server.map(x=>x.id));
+    const missing=local.filter(x=>x&&x.id&&!ids.has(x.id)&&!x.demo);
+    if(missing.length){ setters[key](server.concat(missing)); await saveKey(key,lists[key]()); }
+  }
+  if(!serverHadMeta && groupName) await saveMeta();
+  persistLocal(); renderAll();
+}
 // Rückgabe: 'locked' | 'empty' | 'ok' | 'offline'
 async function loadGroup(){
   if(!groupId)return 'offline';
@@ -728,6 +744,7 @@ async function loadGroup(){
     if(!res.ok)return 'offline';
     const d=await res.json();
     const exists=!!(d && (d.meta || (Array.isArray(d.members)&&d.members.length) || d._updated));
+    serverHadMeta=!!(d && d.meta && d.meta.name);
     if(d && typeof d==='object'){ applyData(d); persistLocal(); renderAll(); }
     return exists?'ok':'empty';
   }catch(e){/* offline: Cache bleibt */ return 'offline'; }
